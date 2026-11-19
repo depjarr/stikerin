@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@google/genai": "^3.6.1",
     "@imgly/background-removal": "^1.7.0",
     "@mediapipe/tasks-vision": "^1.2.3",
     "react": "^19.3.1",

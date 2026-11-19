@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { fileToDataURL, fileToCutout, loadImage } from '../lib/sticker.js';
 import { renderCard, CARD_COLORS, CARD_FONTS } from '../lib/card.js';
+import { geminiEnabled } from '../lib/cloud.js';
 import { TEXT_STYLES } from '../lib/textSticker.js';
 import { KINDS, SLOT_LABEL, SLOT_ORDER } from '../lib/dressup.js';
 import Icon from './Icons.jsx';
@@ -246,7 +247,7 @@ export function RetroPhone({ selected, placedCount, onShareSticker, onShareSet, 
 
 /* =================== sticky note (atur stiker) =================== */
 
-export function StickyNote({ st, defaults, setDefaults, onUpdate, onOutline, onApplyAll, onPeel, onDuplicate, onLayer, onToHeader, packOn, onKind, onTakeOff, stickers = [] }) {
+export function StickyNote({ st, defaults, setDefaults, onUpdate, onOutline, onApplyAll, onPeel, onDuplicate, onLayer, onToHeader, packOn, onKind, onTakeOff, onRealistic, stickers = [] }) {
   return (
     <section className="note" aria-label="Atur stiker">
       <Tape className="note-tape" />
@@ -264,6 +265,7 @@ export function StickyNote({ st, defaults, setDefaults, onUpdate, onOutline, onA
           packOn={packOn}
           onKind={onKind}
           onTakeOff={onTakeOff}
+          onRealistic={onRealistic}
           stickers={stickers}
         />
       ) : (
@@ -283,7 +285,7 @@ export function StickyNote({ st, defaults, setDefaults, onUpdate, onOutline, onA
   );
 }
 
-function NoteInspector({ st, onUpdate, onOutline, onApplyAll, onPeel, onDuplicate, onLayer, onToHeader, packOn, onKind, onTakeOff, stickers }) {
+function NoteInspector({ st, onUpdate, onOutline, onApplyAll, onPeel, onDuplicate, onLayer, onToHeader, packOn, onKind, onTakeOff, onRealistic, stickers }) {
   const [ow, setOw] = useState(st.outline);
   const [oc, setOc] = useState(st.outlineColor);
   useEffect(() => {
@@ -305,7 +307,7 @@ function NoteInspector({ st, onUpdate, onOutline, onApplyAll, onPeel, onDuplicat
         <span className="ctl-label">Jenis stiker</span>
         <Pills small label="Jenis stiker" value={st.kind || 'sticker'} onChange={(k) => onKind(st.id, k)} options={Object.entries(KINDS).map(([k, l]) => [k, l])} />
       </div>
-      {st.kind === 'doll' && <Outfit doll={st} stickers={stickers} onTakeOff={onTakeOff} />}
+      {st.kind === 'doll' && <Outfit doll={st} stickers={stickers} onTakeOff={onTakeOff} onRealistic={onRealistic} />}
       <Slider label="Tebal pinggiran" unit="px" value={ow} min={0} max={40} onChange={setOw} />
       <div className="ctl">
         <span className="ctl-label">Warna pinggiran</span>
@@ -349,7 +351,7 @@ const BG_PRESETS = [
   ['#141414', '#262626'],
 ];
 
-export function Postcard({ tab, setTab, bg, setBg, pack, setPack, onAddText, onUploadKind, onAddCard, jobs = [] }) {
+export function Postcard({ tab, setTab, bg, setBg, pack, setPack, onAddText, onUploadKind, onAddCard, onGenerate, jobs = [] }) {
   return (
     <section className="postcard" aria-label="Gaya kertas stiker">
       <div className="pc-tabs" role="tablist">
@@ -357,6 +359,7 @@ export function Postcard({ tab, setTab, bg, setBg, pack, setPack, onAddText, onU
           ['bg', 'Latar'],
           ['header', 'Header'],
           ['text', '+ Teks'],
+          ['ai', '✦ Prompt'],
           ['card', 'Kartu'],
           ['dress', 'Dandan'],
         ].map(([k, l]) => (
@@ -376,6 +379,7 @@ export function Postcard({ tab, setTab, bg, setBg, pack, setPack, onAddText, onU
         {tab === 'bg' && <BgTab bg={bg} setBg={setBg} />}
         {tab === 'header' && <HeaderTab pack={pack} setPack={setPack} goText={() => setTab('text')} />}
         {tab === 'text' && <TextTab onAdd={onAddText} packOn={pack.enabled} />}
+        {tab === 'ai' && <PromptTab onGenerate={onGenerate} />}
         {tab === 'card' && <CardTab onAdd={onAddCard} packOn={pack.enabled} />}
         {tab === 'dress' && <DressTab onUpload={onUploadKind} jobs={jobs} />}
       </div>
@@ -557,6 +561,86 @@ function TextTab({ onAdd, packOn }) {
   );
 }
 
+/* =================== prompt → stiker (Gemini) =================== */
+
+const PROMPT_STYLES = [
+  ['cute', 'Kartun lucu'],
+  ['y2k', 'Y2K'],
+  ['doodle', 'Doodle'],
+  ['clay', '3D clay'],
+  ['watercolor', 'Cat air'],
+  ['pixel', 'Pixel'],
+];
+const PROMPT_IDEAS = ['kucing pakai topi stroberi', 'boba tea senyum', 'kelinci bawa bunga tulip', 'tulisan "yippi!" warna-warni'];
+
+function PromptTab({ onGenerate }) {
+  const [enabled, setEnabled] = useState(null);
+  const [prompt, setPrompt] = useState('');
+  const [style, setStyle] = useState('cute');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  useEffect(() => {
+    geminiEnabled().then(setEnabled);
+  }, []);
+
+  const go = async () => {
+    if (!prompt.trim()) return;
+    setBusy(true);
+    setErr('');
+    try {
+      await onGenerate({ prompt: prompt.trim(), style });
+    } catch (e) {
+      setErr(e.message || 'Gagal bikin stiker');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="pc-content">
+      <h3 className="pc-title">Stiker dari prompt</h3>
+      {enabled === false && (
+        <p className="pc-hint warn">
+          Fitur ini butuh Gemini API key di server (<code>GEMINI_API_KEY</code>). Cara isinya ada di README.
+        </p>
+      )}
+      <label className="field">
+        <span className="ctl-label">Mau stiker apa?</span>
+        <textarea
+          className="text-in"
+          rows={3}
+          maxLength={400}
+          placeholder="contoh: kucing oren pakai topi stroberi lagi minum boba"
+          value={prompt}
+          onChange={(e) => setPrompt(e.target.value)}
+        />
+      </label>
+      <div className="row-btns">
+        {PROMPT_IDEAS.map((idea) => (
+          <button key={idea} type="button" className="chip-btn" onClick={() => setPrompt(idea)}>
+            {idea}
+          </button>
+        ))}
+      </div>
+      <div className="ctl">
+        <span className="ctl-label">Gaya gambar</span>
+        <Pills small label="Gaya gambar" value={style} onChange={setStyle} options={PROMPT_STYLES} />
+      </div>
+      <button type="button" className="btn-3d pink" disabled={busy || !prompt.trim() || enabled === false} onClick={go}>
+        {busy ? (
+          <>
+            <span className="spinner" aria-hidden /> Lagi digambar…
+          </>
+        ) : (
+          '✦ Bikin stiker'
+        )}
+      </button>
+      {err && <p className="scan-status err">{err}</p>}
+      <p className="pc-hint">Gambarnya dibikin Gemini, terus otomatis dipotong & dikasih pinggiran putih.</p>
+    </div>
+  );
+}
+
 /* =================== kartu (photocard) =================== */
 
 function CardTab({ onAdd, packOn }) {
@@ -720,7 +804,24 @@ function CardTab({ onAdd, packOn }) {
 
 /* =================== paper doll =================== */
 
-function Outfit({ doll, stickers, onTakeOff }) {
+function Outfit({ doll, stickers, onTakeOff, onRealistic }) {
+  const [enabled, setEnabled] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  useEffect(() => {
+    geminiEnabled().then(setEnabled);
+  }, []);
+  const realistic = async () => {
+    setBusy(true);
+    setErr('');
+    try {
+      await onRealistic(doll.id);
+    } catch (e) {
+      setErr(e.message || 'Gagal');
+    } finally {
+      setBusy(false);
+    }
+  };
   const items = SLOT_ORDER.filter((s) => doll.outfit?.[s]).map((slot) => [slot, stickers.find((x) => x.id === doll.outfit[slot])]).filter(([, it]) => it);
   return (
     <div className="outfit">
@@ -740,6 +841,19 @@ function Outfit({ doll, stickers, onTakeOff }) {
           ))}
         </ul>
       )}
+      {items.length > 0 && enabled && (
+        <button type="button" className="btn-3d blue" disabled={busy} onClick={realistic}>
+          {busy ? (
+            <>
+              <span className="spinner" aria-hidden /> AI lagi dandanin…
+            </>
+          ) : (
+            '✦ Bikin versi realistis (AI)'
+          )}
+        </button>
+      )}
+      {items.length > 0 && enabled && !busy && <p className="pc-hint">Hasilnya jadi stiker baru di sebelahnya, stiker paper doll-nya tetap aman.</p>}
+      {err && <p className="scan-status err">{err}</p>}
     </div>
   );
 }

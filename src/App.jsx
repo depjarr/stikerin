@@ -6,7 +6,8 @@ import ShareSheet from './components/ShareSheet.jsx';
 import { ScanButton, PhotoStrip, RetroPhone, StickyNote, Postcard, BottomSheet } from './components/Panels.jsx';
 import { Star, Tape, DeskDoodles } from './components/Deco.jsx';
 import Icon from './components/Icons.jsx';
-import { fileToCutout, renderSticker, dataURLToBlob, toWhatsAppSticker } from './lib/sticker.js';
+import { fileToCutout, aiCutout, renderSticker, dataURLToBlob, toWhatsAppSticker } from './lib/sticker.js';
+import { generateCloud, tryOnCloud } from './lib/cloud.js';
 import { textToCutout } from './lib/textSticker.js';
 import { BOARD_W, BOARD_H, HEADER_H, exportSet } from './lib/exporter.js';
 import { downloadBlob } from './lib/share.js';
@@ -237,6 +238,34 @@ export default function App() {
     }
   };
 
+  /* ---------- Gemini: prompt → stiker & try-on realistis ---------- */
+  const generateFromPrompt = async ({ prompt, style }) => {
+    const img = await generateCloud(prompt, style);
+    const cut = await aiCutout(img);
+    const id = addSticker(prompt.slice(0, 20), cut, defaults.outline, defaults.outlineColor);
+    setSelectedId(id);
+    toast('Stiker dari prompt jadi ✦');
+    if (mode === 'phone') setSheet(null);
+  };
+
+  const makeRealistic = async (dollId) => {
+    const doll = stickers.find((s) => s.id === dollId);
+    const person = cutouts.current.get(dollId);
+    const garments = Object.entries(doll?.outfit || {})
+      .map(([slot, id]) => ({ slot, canvas: cutouts.current.get(id) }))
+      .filter((g) => g.canvas);
+    if (!person || !garments.length) throw new Error('Pakaikan minimal 1 baju dulu');
+    const img = await tryOnCloud(person, garments);
+    const cut = await aiCutout(img);
+    const r = renderSticker(cut, doll.outline, doll.outlineColor);
+    const id = addSticker(`${doll.name || 'orang'} (realistis)`, cut, doll.outline, doll.outlineColor, { base: 560 });
+    const width = (doll.width / doll.imgW) * r.imgW * (doll.imgH / r.imgH);
+    const x = doll.x + doll.width / 2 + width / 2 + 16 < BOARD_W ? doll.x + doll.width / 2 + width / 2 + 16 : Math.max(width / 2, doll.x - doll.width / 2 - width / 2 - 16);
+    update(id, { x, y: doll.y, rot: 0, width });
+    setSelectedId(id);
+    toast('Versi realistis jadi ✦');
+  };
+
   const addCard = ({ canvas, name, where, size }) => {
     const base = size === 'banner' ? 360 : 300;
     const id = addSticker(name, canvas, 6, '#ffffff', { where, base });
@@ -407,7 +436,7 @@ export default function App() {
     />
   );
   const postcard = (
-    <Postcard tab={pcTab} setTab={setPcTab} bg={bg} setBg={setBg} pack={pack} setPack={setPack} onAddText={addText} onUploadKind={(files, kind) => { onFiles(files, { kind }); if (mode === 'phone') setSheet(null); }} onAddCard={addCard} jobs={jobs} />
+    <Postcard tab={pcTab} setTab={setPcTab} bg={bg} setBg={setBg} pack={pack} setPack={setPack} onAddText={addText} onUploadKind={(files, kind) => { onFiles(files, { kind }); if (mode === 'phone') setSheet(null); }} onAddCard={addCard} onGenerate={generateFromPrompt} jobs={jobs} />
   );
   const note = (
     <StickyNote
@@ -424,6 +453,7 @@ export default function App() {
       packOn={pack.enabled}
       onKind={setKind}
       onTakeOff={takeOff}
+      onRealistic={makeRealistic}
       stickers={stickers}
     />
   );

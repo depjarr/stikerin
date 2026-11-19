@@ -115,9 +115,32 @@ export async function fileToCutout(file, { useAI, shape, onProgress }) {
     return shapeCanvas(fitCanvas(img, MAX_SIDE), shape);
   }
 
+  URL.revokeObjectURL(url);
+  return aiCutout(img, onProgress);
+}
+
+/**
+ * Gambar apa aja → cutout. Coba Gemini dulu (kalau API key diisi di server),
+ * kalau gagal pakai AI yang jalan di browser.
+ */
+export async function aiCutout(img, onProgress) {
+  const cloud = await import('./cloud.js');
+  if (await cloud.geminiEnabled()) {
+    try {
+      onProgress?.('Gemini lagi motong foto…', 0.3);
+      const cut = await cloud.removeBgCloud(img);
+      const trimmed = cut && trimCanvas(cut);
+      if (trimmed) return fitCanvas(trimmed, MAX_SIDE);
+    } catch (e) {
+      console.warn('Gemini gagal motong, pakai AI browser', e);
+    }
+  }
+  return localCutout(img, onProgress);
+}
+
+async function localCutout(img, onProgress) {
   onProgress?.('Nyiapin AI…', 0);
   const base = fitCanvas(img, 1024);
-  URL.revokeObjectURL(url);
   const { removeBackground } = await import('@imgly/background-removal');
   const out = await removeBackground(await canvasToBlob(base), {
     model: 'isnet_fp16',
