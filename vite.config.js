@@ -48,7 +48,12 @@ function localApi() {
 export default defineConfig(({ mode }) => {
   // baca GEMINI_API_KEY dkk dari .env.local buat fungsi server lokal
   const env = loadEnv(mode, process.cwd(), '');
-  for (const k of ['GEMINI_API_KEY', 'GEMINI_IMAGE_MODEL', 'GEMINI_TEXT_MODEL']) if (env[k]) process.env[k] = env[k];
+  const SERVER_KEYS = [
+    'GEMINI_API_KEY', 'GEMINI_IMAGE_MODEL', 'GEMINI_TEXT_MODEL', 'GEMINI_TRYON',
+    'CLOUDFLARE_ACCOUNT_ID', 'CLOUDFLARE_API_TOKEN', 'CLOUDFLARE_IMAGE_MODEL',
+    'IMAGE_PROVIDERS', 'POLLINATIONS_DISABLED',
+  ];
+  for (const k of SERVER_KEYS) if (env[k]) process.env[k] = env[k];
   return {
     plugins: [react(), localApi()],
     optimizeDeps: { exclude: ['@imgly/background-removal'] },

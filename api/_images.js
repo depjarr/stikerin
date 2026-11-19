@@ -24,7 +24,7 @@ async function viaCloudflare(prompt) {
   const r = await fetch(url, {
     method: 'POST',
     headers: { Authorization: `Bearer ${process.env.CLOUDFLARE_API_TOKEN}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ prompt: prompt.slice(0, 2000), steps: 6, seed: Math.floor(Math.random() * 1e9) }),
+    body: JSON.stringify({ prompt: prompt.slice(0, 2000), steps: 6 }), // flux-1-schnell ga nerima "seed"
   });
   const data = await r.json().catch(() => ({}));
   if (!r.ok || data.success === false) {
