@@ -12,7 +12,7 @@ const TEXT_SWATCHES = ['#ff4fa3', '#1b1840', '#8be04e', '#3d8bff', '#ffd60a', '#
 
 /* =================== kontrol dasar =================== */
 
-function Toggle({ checked, onChange, label, sub }) {
+export function Toggle({ checked, onChange, label, sub }) {
   return (
     <label className="toggle">
       <span className="toggle-text">
@@ -27,7 +27,7 @@ function Toggle({ checked, onChange, label, sub }) {
   );
 }
 
-function Pills({ value, options, onChange, label, small }) {
+export function Pills({ value, options, onChange, label, small }) {
   return (
     <div className={`pills ${small ? 'small' : ''}`} role="radiogroup" aria-label={label}>
       {options.map(([v, text, style]) => (
@@ -39,7 +39,7 @@ function Pills({ value, options, onChange, label, small }) {
   );
 }
 
-function Slider({ label, value, min, max, onChange, unit = '' }) {
+export function Slider({ label, value, min, max, onChange, unit = '' }) {
   const pct = ((value - min) / (max - min)) * 100;
   return (
     <label className="slider">
@@ -387,7 +387,7 @@ export function Postcard({ tab, setTab, bg, setBg, pack, setPack, onAddText, onU
   );
 }
 
-function BgTab({ bg, setBg }) {
+export function BgTab({ bg, setBg }) {
   return (
     <div className="pc-content">
       <h3 className="pc-title">Latar kertas</h3>
@@ -430,7 +430,7 @@ function BgTab({ bg, setBg }) {
   );
 }
 
-function HeaderTab({ pack, setPack, goText }) {
+export function HeaderTab({ pack, setPack, goText }) {
   const set = (patch) => setPack({ ...pack, ...patch });
   return (
     <div className="pc-content">
@@ -498,7 +498,7 @@ function HeaderTab({ pack, setPack, goText }) {
   );
 }
 
-function TextTab({ onAdd, packOn }) {
+export function TextTab({ onAdd, packOn }) {
   const [text, setText] = useState('13\n12');
   const [style, setStyle] = useState('bubble');
   const [fill, setFill] = useState('#8be04e');
@@ -573,26 +573,37 @@ const PROMPT_STYLES = [
 ];
 const PROMPT_IDEAS = ['kucing pakai topi stroberi', 'boba tea senyum', 'kelinci bawa bunga tulip', 'tulisan "yippi!" warna-warni'];
 
-function PromptTab({ onGenerate }) {
+export function PromptTab({ onGenerate }) {
   const [enabled, setEnabled] = useState(null);
   const [prompt, setPrompt] = useState('');
   const [style, setStyle] = useState('cute');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
+  const [stage, setStage] = useState('');
+  const [secs, setSecs] = useState(0);
   useEffect(() => {
     aiStatus().then((st) => setEnabled(st.image));
   }, []);
+  // hitung detik selama nunggu AI, biar ketauan masih jalan
+  useEffect(() => {
+    if (!busy) return;
+    setSecs(0);
+    const id = setInterval(() => setSecs((s) => s + 1), 1000);
+    return () => clearInterval(id);
+  }, [busy]);
 
   const go = async () => {
     if (!prompt.trim()) return;
     setBusy(true);
     setErr('');
+    setStage('Ngirim ide ke AI…');
     try {
-      await onGenerate({ prompt: prompt.trim(), style });
+      await onGenerate({ prompt: prompt.trim(), style, onStage: setStage });
     } catch (e) {
       setErr(e.message || 'Gagal bikin stiker');
     } finally {
       setBusy(false);
+      setStage('');
     }
   };
 
@@ -635,15 +646,24 @@ function PromptTab({ onGenerate }) {
           '✦ Bikin stiker'
         )}
       </button>
+      {busy && (
+        <div className="ai-progress" role="status" aria-live="polite">
+          <div className="ai-skeleton" aria-hidden />
+          <div className="ai-progress-text">
+            <b>{stage}</b>
+            <span>{secs} detik · biasanya 10–40 detik</span>
+          </div>
+        </div>
+      )}
       {err && <p className="scan-status err">{err}</p>}
-      <p className="pc-hint">Gambarnya dibikin AI (gratis), terus otomatis dipotong & dikasih pinggiran putih. Bisa makan 10–40 detik.</p>
+      <p className="pc-hint">Gambarnya dibikin AI (gratis), terus otomatis dipotong & dikasih pinggiran putih.</p>
     </div>
   );
 }
 
 /* =================== kartu (photocard) =================== */
 
-function CardTab({ onAdd, packOn }) {
+export function CardTab({ onAdd, packOn }) {
   const fileRef = useRef(null);
   const [file, setFile] = useState(null);
   const [photo, setPhoto] = useState(null); // { img, isCut }
@@ -858,7 +878,7 @@ function Outfit({ doll, stickers, onTakeOff, onRealistic }) {
   );
 }
 
-function DressTab({ onUpload, jobs }) {
+export function DressTab({ onUpload, jobs }) {
   const dollRef = useRef(null);
   const clothRef = useRef(null);
   const [kind, setKind] = useState('auto');

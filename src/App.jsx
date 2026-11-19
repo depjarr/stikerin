@@ -3,10 +3,13 @@ import Board from './components/Board.jsx';
 import Home from './components/Home.jsx';
 import CameraScanner from './components/CameraScanner.jsx';
 import ShareSheet from './components/ShareSheet.jsx';
-import { ScanButton, PhotoStrip, RetroPhone, StickyNote, Postcard, BottomSheet } from './components/Panels.jsx';
-import { Star, Tape, DeskDoodles } from './components/Deco.jsx';
+import { PhotoStrip, StickyNote, BottomSheet } from './components/Panels.jsx';
+import { AddPanel, StylePanel, SharePanel } from './components/IosPanels.jsx';
 import Icon from './components/Icons.jsx';
-import { fileToCutout, aiCutout, renderSticker, dataURLToBlob, toWhatsAppSticker } from './lib/sticker.js';
+import { fileToCutout, aiCutout, renderSticker, dataURLToBlob, toWhatsAppSticker, canvasToBlob } from './lib/sticker.js';
+import { saveDoc, loadDoc, blobToCanvas } from './lib/persist.js';
+import { renderPrintPages, printPages } from './lib/printSheet.js';
+import { buildWaPack } from './lib/waPack.js';
 import { generateCloud, tryOnCloud } from './lib/cloud.js';
 import { textToCutout } from './lib/textSticker.js';
 import { BOARD_W, BOARD_H, HEADER_H, exportSet } from './lib/exporter.js';
@@ -72,8 +75,9 @@ export default function App() {
   const mode = useLayoutMode();
   const [screen, setScreen] = useState('home');
   const [scanOpen, setScanOpen] = useState(false);
-  const [sheet, setSheet] = useState(null); // HP: 'gaya' | 'atur' | 'kirim'
-  const [pcTab, setPcTab] = useState('bg');
+  const [sheet, setSheet] = useState(null); // HP: 'tambah' | 'gaya' | 'atur' | 'kirim'
+  const [addTab, setAddTab] = useState('foto');
+  const [styleTab, setStyleTab] = useState('bg');
   const [stickers, setStickers] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
   const [jobs, setJobs] = useState([]);
@@ -99,6 +103,10 @@ export default function App() {
   const [toastMsg, setToastMsg] = useState('');
   const [exporting, setExporting] = useState(false);
   const cutouts = useRef(new Map());
+  const cutoutBlobs = useRef(new Map()); // buat disimpen ke IndexedDB
+  const [loaded, setLoaded] = useState(false);
+  const [saveTick, setSaveTick] = useState(0);
+  const [savedAt, setSavedAt] = useState(0);
   const zTop = useRef(1);
   const packRef = useRef(pack);
   packRef.current = pack;
@@ -112,11 +120,128 @@ export default function App() {
 
   const update = useCallback((id, patch) => setStickers((ss) => ss.map((s) => (s.id === id ? { ...s, ...patch } : s))), []);
 
+  const setCutout = (id, cut, blob) => {
+    cutouts.current.set(id, cut);
+    if (blob) {
+      cutoutBlobs.current.set(id, blob);
+      return;
+    }
+    canvasToBlob(cut, 'image/png')
+      .then((b) => {
+        cutoutBlobs.current.set(id, b);
+        setSaveTick((t) => t + 1);
+      })
+      .catch(() => {});
+  };
+
+  /* ---------- simpan otomatis (IndexedDB) ---------- */
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const doc = await loadDoc();
+      if (alive && doc?.stickers?.length) {
+        for (const [id, blob] of doc.cutouts || []) {
+          try {
+            setCutout(id, await blobToCanvas(blob), blob);
+          } catch {
+            /* lewati cutout yang rusak */
+          }
+        }
+        zTop.current = Math.max(1, ...doc.stickers.map((s) => s.z || 1));
+        setStickers(doc.stickers.map((s) => ({ ...s, peelNonce: 0 })));
+        if (doc.bg) setBg(doc.bg);
+        if (doc.pack) setPack(doc.pack);
+        if (doc.defaults) setDefaults(doc.defaults);
+        hist.current = { past: [], future: [], last: null, timer: 0, skip: false };
+      }
+      if (alive) setLoaded(true);
+    })();
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (!loaded) return;
+    const t = setTimeout(async () => {
+      const ids = new Set(stickers.map((s) => s.id));
+      const cut = [...cutoutBlobs.current].filter(([id]) => ids.has(id));
+      if (await saveDoc({ v: 1, stickers, bg, pack, defaults, cutouts: cut, savedAt: Date.now() })) setSavedAt(Date.now());
+    }, 800);
+    return () => clearTimeout(t);
+  }, [stickers, bg, pack, defaults, loaded, saveTick]);
+
+  /* ---------- undo / redo ---------- */
+  const hist = useRef({ past: [], future: [], last: null, timer: 0, skip: false });
+  const [, setHistTick] = useState(0);
+  useEffect(() => {
+    const h = hist.current;
+    const cur = { stickers, bg, pack };
+    if (h.skip) {
+      h.skip = false;
+      h.last = cur;
+      return;
+    }
+    if (!h.last) {
+      h.last = cur;
+      return;
+    }
+    clearTimeout(h.timer);
+    // digabung per 400 ms, jadi satu kali geser = satu langkah undo
+    h.timer = setTimeout(() => {
+      if (h.last.stickers === cur.stickers && h.last.bg === cur.bg && h.last.pack === cur.pack) return;
+      h.past.push(h.last);
+      if (h.past.length > 60) h.past.shift();
+      h.future = [];
+      h.last = cur;
+      setHistTick((t) => t + 1);
+    }, 400);
+  }, [stickers, bg, pack]);
+
+  const flushHistory = () => {
+    const h = hist.current;
+    clearTimeout(h.timer);
+    const cur = { stickers, bg, pack };
+    if (h.last && (h.last.stickers !== cur.stickers || h.last.bg !== cur.bg || h.last.pack !== cur.pack)) {
+      h.past.push(h.last);
+      h.future = [];
+      h.last = cur;
+    }
+  };
+  const restore = (doc) => {
+    hist.current.skip = true;
+    setStickers(doc.stickers.map((s) => (s.peelNonce ? { ...s, peelNonce: 0 } : s)));
+    setBg(doc.bg);
+    setPack(doc.pack);
+    setHistTick((t) => t + 1);
+  };
+  const undo = () => {
+    flushHistory();
+    const h = hist.current;
+    if (!h.past.length) return;
+    const prev = h.past.pop();
+    h.future.push(h.last);
+    h.last = prev;
+    restore(prev);
+  };
+  const redo = () => {
+    const h = hist.current;
+    clearTimeout(h.timer);
+    if (!h.future.length) return;
+    const next = h.future.pop();
+    h.past.push(h.last);
+    h.last = next;
+    restore(next);
+  };
+  const canUndo = hist.current.past.length > 0 || (hist.current.last && hist.current.last.stickers !== stickers);
+  const canRedo = hist.current.future.length > 0;
+
   const addSticker = (name, cut, outline, outlineColor, { where = 'body', base, kind = 'sticker' } = {}) => {
     const p = packRef.current;
     const r = renderSticker(cut, outline, outlineColor);
     const id = uid();
-    cutouts.current.set(id, cut);
+    setCutout(id, cut);
     let width = initialWidth(r, base);
     const h = (width * r.imgH) / r.imgW;
     if (where === 'header' && h > HEADER_H * 0.8) width *= (HEADER_H * 0.8) / h;
@@ -239,8 +364,10 @@ export default function App() {
   };
 
   /* ---------- Gemini: prompt → stiker & try-on realistis ---------- */
-  const generateFromPrompt = async ({ prompt, style }) => {
+  const generateFromPrompt = async ({ prompt, style, onStage }) => {
+    onStage?.('AI lagi ngegambar…');
     const img = await generateCloud(prompt, style);
+    onStage?.('Motong pinggiran stiker…');
     const cut = await aiCutout(img);
     const id = addSticker(prompt.slice(0, 20), cut, defaults.outline, defaults.outlineColor);
     setSelectedId(id);
@@ -319,7 +446,7 @@ export default function App() {
   const duplicate = (id) => {
     const s = stickers.find((x) => x.id === id);
     const nid = uid();
-    cutouts.current.set(nid, cutouts.current.get(id));
+    setCutout(nid, cutouts.current.get(id), cutoutBlobs.current.get(id));
     setStickers((ss) => [...ss, { ...s, id: nid, x: s.x + 40, y: s.y + 40, z: ++zTop.current, placedAt: Date.now(), peelNonce: 0, outfit: s.kind === 'doll' ? {} : undefined, wornBy: null }]);
     setSelectedId(nid);
   };
@@ -339,8 +466,7 @@ export default function App() {
           return x;
         })
     );
-    cutouts.current.delete(id);
-    if (selectedId === id) setSelectedId(null);
+    if (selectedId === id) setSelectedId(null); // cutout ga dihapus biar bisa di-undo
   };
 
   const shareSticker = async (id) => {
@@ -365,11 +491,57 @@ export default function App() {
   const download = async () => downloadBlob(await exportBlob(), pack.enabled ? 'sticker-pack.png' : 'sticker-sheet.png');
   const shareSet = async () => setShare({ title: pack.enabled ? pack.title || 'Sticker pack' : 'Lembar stiker', blob: await exportBlob(), filename: 'sticker-pack.png' });
 
-  // Keyboard: Delete = cabut, panah = geser
+  const printA4 = async () => {
+    const win = window.open('', '_blank'); // dibuka pas klik biar ga diblok
+    setExporting(true);
+    try {
+      const pages = await renderPrintPages(stickers);
+      if (!pages.length) {
+        win?.close();
+        return;
+      }
+      if (win) printPages(win, pages);
+      else {
+        downloadBlob(await canvasToBlob(pages[0]), 'stiker-a4.png');
+        toast('Popup diblok browser, jadi lembar A4-nya didownload');
+      }
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const waPack = async () => {
+    setExporting(true);
+    try {
+      const { blob, count, filename } = await buildWaPack(stickers);
+      downloadBlob(blob, filename);
+      toast(`Paket ${count} stiker WhatsApp didownload. Caranya ada di CARA-PAKAI.txt`);
+    } catch (e) {
+      toast(e.message || 'Gagal bikin paket');
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const clearBoard = () => {
+    setStickers([]);
+    setSelectedId(null);
+    toast('Kertas dikosongin. Pencet ↶ buat balikin');
+  };
+
+  // Keyboard: Ctrl+Z / Ctrl+Shift+Z = undo/redo, Delete = cabut, panah = geser
   useEffect(() => {
     if (screen !== 'studio') return;
     const onKey = (e) => {
-      if (!selectedId || share || scanOpen || /INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName)) return;
+      if (share || scanOpen || /INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName)) return;
+      const k = e.key.toLowerCase();
+      if ((e.ctrlKey || e.metaKey) && (k === 'z' || k === 'y')) {
+        e.preventDefault();
+        if (k === 'y' || e.shiftKey) redo();
+        else undo();
+        return;
+      }
+      if (!selectedId) return;
       const s = stickers.find((x) => x.id === selectedId);
       if (!s || !s.placed) return;
       const step = e.shiftKey ? 20 : 4;
@@ -422,10 +594,11 @@ export default function App() {
     );
   }
 
-  /* ---------- panel-panel studio ---------- */
+  /* ---------- panel-panel studio (gaya iOS) ---------- */
+  const closeSheetOnPhone = () => mode === 'phone' && setSheet(null);
   const strip = (
     <PhotoStrip
-      horizontal={mode !== 'desk'}
+      horizontal={mode === 'phone'}
       stickers={stickers}
       jobs={jobs}
       selectedId={selectedId}
@@ -436,8 +609,41 @@ export default function App() {
       onArrange={() => setStickers((ss) => arrange(ss, pack))}
     />
   );
-  const postcard = (
-    <Postcard tab={pcTab} setTab={setPcTab} bg={bg} setBg={setBg} pack={pack} setPack={setPack} onAddText={addText} onUploadKind={(files, kind) => { onFiles(files, { kind }); if (mode === 'phone') setSheet(null); }} onAddCard={addCard} onGenerate={generateFromPrompt} jobs={jobs} />
+  const addPanel = (
+    <AddPanel
+      tab={addTab}
+      setTab={setAddTab}
+      packOn={pack.enabled}
+      onScan={() => setScanOpen(true)}
+      onFiles={(files) => {
+        onFiles(files);
+        closeSheetOnPhone();
+      }}
+      defaults={defaults}
+      setDefaults={setDefaults}
+      jobs={jobs}
+      onAddText={addText}
+      onAddCard={addCard}
+      onGenerate={generateFromPrompt}
+      onUploadKind={(files, kind) => {
+        onFiles(files, { kind });
+        closeSheetOnPhone();
+      }}
+    />
+  );
+  const stylePanel = (
+    <StylePanel
+      tab={styleTab}
+      setTab={setStyleTab}
+      bg={bg}
+      setBg={setBg}
+      pack={pack}
+      setPack={setPack}
+      goText={() => {
+        setAddTab('teks');
+        if (mode === 'phone') setSheet('tambah');
+      }}
+    />
   );
   const note = (
     <StickyNote
@@ -458,44 +664,66 @@ export default function App() {
       stickers={stickers}
     />
   );
-  const phone = (
-    <RetroPhone selected={selected} placedCount={placedCount} exporting={exporting} onShareSticker={shareSticker} onShareSet={shareSet} onDownload={download} />
+  const sharePanel = (
+    <SharePanel
+      selected={selected}
+      placedCount={placedCount}
+      total={stickers.length}
+      busy={exporting}
+      onShareSticker={shareSticker}
+      onShareSet={shareSet}
+      onDownload={download}
+      onPrint={printA4}
+      onWaPack={waPack}
+      onClear={() => {
+        clearBoard();
+        closeSheetOnPhone();
+      }}
+    />
   );
+  const boardActions = {
+    onPeel: peel,
+    onDuplicate: duplicate,
+    onFront: bringFront,
+    onShare: shareSticker,
+    onDelete: remove,
+  };
 
   return (
-    <div className={`studio mode-${mode}`}>
-      <header className="studio-top">
-        <button type="button" className="logo" onClick={() => setScreen('home')} aria-label="Ke halaman awal">
-          <Star size={30} />
-          <span className="logo-word">stikerin</span>
+    <div className={`studio ios mode-${mode}`}>
+      <div className="ios-bg" aria-hidden="true" />
+      <header className="ios-nav glass">
+        <button type="button" className="ios-nav-btn" onClick={() => setScreen('home')}>
+          <Icon name="back" size={20} strokeWidth={2.4} /> <span>Beranda</span>
         </button>
-        {mode === 'desk' && <span className="top-slogan">foto, tempel, kirim!</span>}
-        <nav className="top-nav">
-          <button type="button" className="nav-pill blue" onClick={() => setScanOpen(true)}>
-            <Icon name="camera" size={17} strokeWidth={2.2} /> <span>Scan</span>
+        <div className="ios-nav-title">
+          <b>Stikerin</b>
+          <small>{savedAt ? 'Tersimpan otomatis' : 'Belum ada perubahan'}</small>
+        </div>
+        <div className="ios-nav-actions">
+          <button type="button" className="ios-icon-btn" onClick={undo} disabled={!canUndo} aria-label="Batalkan (Ctrl+Z)" title="Batalkan (Ctrl+Z)">
+            <Icon name="undo" size={20} strokeWidth={2.2} />
           </button>
-          <button type="button" className="nav-pill orange" onClick={shareSet} disabled={!placedCount || exporting}>
-            <Icon name="share" size={17} strokeWidth={2.2} /> <span>Kirim set</span>
+          <button type="button" className="ios-icon-btn" onClick={redo} disabled={!canRedo} aria-label="Ulangi (Ctrl+Shift+Z)" title="Ulangi (Ctrl+Shift+Z)">
+            <Icon name="redo" size={20} strokeWidth={2.2} />
           </button>
-          <button type="button" className="nav-pill pink" onClick={download} disabled={exporting}>
-            <Icon name="download" size={17} strokeWidth={2.2} /> <span>{exporting ? 'Nyiapin…' : 'Simpan'}</span>
-          </button>
-        </nav>
+          {mode !== 'phone' && (
+            <button type="button" className="ios-btn filled small" onClick={download} disabled={exporting}>
+              <Icon name="download" size={16} strokeWidth={2.4} /> {exporting ? 'Nyiapin…' : 'Simpan'}
+            </button>
+          )}
+        </div>
       </header>
 
-      <div className="desk">
-        <DeskDoodles />
+      <main className="ios-main">
         {mode !== 'phone' && (
-          <div className="area-tools">
-            <ScanButton onScan={() => setScanOpen(true)} jobs={jobs} />
-            {postcard}
-          </div>
+          <aside className="ios-col ios-left">
+            {addPanel}
+            {stylePanel}
+          </aside>
         )}
-        <div className="area-strip">{strip}</div>
-        <div className="area-board">
+        <section className="ios-canvas" aria-label="Kertas stiker">
           <div className="board-holder">
-            <Tape className="bt1" />
-            <Tape className="bt2" />
             <Board
               stickers={stickers}
               bg={bg}
@@ -507,40 +735,44 @@ export default function App() {
               onPeeled={onPeeled}
               onWear={onWear}
               onUndress={onUndress}
+              actions={boardActions}
             />
           </div>
-          <p className="board-hint">geser buat mindahin · tarik pojok kanan-bawah buat nyabut · ↻ putar & ubah ukuran</p>
-        </div>
+          <p className="board-hint">Ketuk stiker buat menu · tarik pojok yang kelipat buat nyabut · ↻ putar & ubah ukuran</p>
+          {mode === 'phone' && strip}
+        </section>
         {mode !== 'phone' && (
-          <div className="area-side">
-            {phone}
+          <aside className="ios-col ios-right">
             {note}
-          </div>
+            {strip}
+            {sharePanel}
+          </aside>
         )}
-      </div>
+      </main>
 
       {mode === 'phone' && (
         <>
-          <nav className="dock" aria-label="Alat">
+          <nav className="ios-tabbar glass" aria-label="Menu">
+            <button type="button" onClick={() => setSheet('tambah')}>
+              <Icon name="plus" size={24} strokeWidth={2.2} /> Tambah
+            </button>
             <button type="button" onClick={() => setSheet('gaya')}>
               <Icon name="sliders" size={22} /> Gaya
+            </button>
+            <button type="button" className="ios-tab-cam" onClick={() => setScanOpen(true)} aria-label="Kamera">
+              <Icon name="camera" size={26} strokeWidth={2.2} />
             </button>
             <button type="button" onClick={() => setSheet('atur')} className={selected ? 'has' : ''}>
               <Icon name="peel" size={22} /> Atur
             </button>
-            <button type="button" className="dock-scan" onClick={() => setScanOpen(true)} aria-label="Scan foto">
-              <Icon name="camera" size={30} strokeWidth={2.2} />
-            </button>
             <button type="button" onClick={() => setSheet('kirim')}>
               <Icon name="share" size={22} /> Kirim
             </button>
-            <button type="button" onClick={download} disabled={exporting}>
-              <Icon name="download" size={22} /> Simpan
-            </button>
           </nav>
-          {sheet === 'gaya' && <BottomSheet title="Gaya kertas" onClose={() => setSheet(null)}>{postcard}</BottomSheet>}
+          {sheet === 'tambah' && <BottomSheet title="Tambah stiker" onClose={() => setSheet(null)}>{addPanel}</BottomSheet>}
+          {sheet === 'gaya' && <BottomSheet title="Gaya kertas" onClose={() => setSheet(null)}>{stylePanel}</BottomSheet>}
           {sheet === 'atur' && <BottomSheet title="Atur stiker" onClose={() => setSheet(null)}>{note}</BottomSheet>}
-          {sheet === 'kirim' && <BottomSheet title="Kirim" onClose={() => setSheet(null)}>{phone}</BottomSheet>}
+          {sheet === 'kirim' && <BottomSheet title="Kirim & simpan" onClose={() => setSheet(null)}>{sharePanel}</BottomSheet>}
         </>
       )}
       {overlays}

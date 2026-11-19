@@ -3,7 +3,7 @@ import StickerOnBoard from './StickerOnBoard.jsx';
 import { BOARD_W, BOARD_H, drawBase, cutHole, ensureFonts, loadBaseImages } from '../lib/exporter.js';
 import { isClothing, wornList } from '../lib/dressup.js';
 
-export default function Board({ stickers, bg, pack, selectedId, onSelect, onUpdate, onBringFront, onPeeled, onWear, onUndress }) {
+export default function Board({ stickers, bg, pack, selectedId, onSelect, onUpdate, onBringFront, onPeeled, onWear, onUndress, actions }) {
   const boardRef = useRef(null);
   const baseRef = useRef(null);
   const [px, setPx] = useState(0);
@@ -195,6 +195,24 @@ export default function Board({ stickers, bg, pack, selectedId, onSelect, onUpda
               ↻
             </button>
           </div>
+          {!dragId && actions && (() => {
+            // menu cepat ala iOS di atas stiker (pindah ke bawah kalau mepet atas)
+            const reach = Math.max(sel.width, selH) * 0.58;
+            const above = sel.y - reach > BOARD_H * 0.07;
+            const top = ((above ? sel.y - reach : sel.y + reach) / BOARD_H) * 100;
+            // lebar menu ±330px → jaga biar ga keluar dari kertas
+            const half = px ? Math.min(50, (170 / px) * 100) : 30;
+            const left = Math.min(100 - half, Math.max(half, (sel.x / BOARD_W) * 100));
+            return (
+              <div className={`sel-menu ${above ? 'above' : 'below'}`} style={{ left: `${left}%`, top: `${top}%` }} role="toolbar" aria-label="Aksi stiker">
+                <button type="button" onClick={() => actions.onPeel(sel.id)}>Cabut</button>
+                <button type="button" onClick={() => actions.onDuplicate(sel.id)}>Duplikat</button>
+                <button type="button" onClick={() => actions.onFront(sel.id)}>Ke depan</button>
+                <button type="button" onClick={() => actions.onShare(sel.id)}>Kirim</button>
+                <button type="button" className="danger" onClick={() => actions.onDelete(sel.id)}>Hapus</button>
+              </div>
+            );
+          })()}
         </div>
       )}
     </div>

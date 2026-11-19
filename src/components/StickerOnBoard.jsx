@@ -127,7 +127,8 @@ export default function StickerOnBoard({ st, selected, dragging, dropTarget, wor
   };
 
   const curl = Math.min(26, size.w * 0.14);
-  const fold = s ?? (hover && !dragging && phase === 'idle' ? s0 - curl : null);
+  // pojok kelipat dikit pas disorot ATAU dipilih (di HP ga ada hover) → ketauan bisa ditarik
+  const fold = s ?? ((hover || selected) && !dragging && phase === 'idle' ? s0 - curl : null);
   const W = size.w, H = size.h;
 
   const h = (st.width * st.imgH) / st.imgW;
