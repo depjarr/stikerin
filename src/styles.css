@@ -630,6 +630,7 @@ input[type='range']::-moz-range-thumb { width: 22px; height: 22px; border-radius
   position: absolute; inset: 0; overflow: hidden; border-radius: 8px;
   box-shadow: 0 0 0 3px #fff, 0 22px 34px -16px rgba(27, 24, 64, 0.55);
   touch-action: none; user-select: none; -webkit-user-select: none;
+  isolation: isolate; z-index: 0; /* z stiker cuma berlaku di dalam kertas → menu & bingkai selalu di atas */
 }
 .board.is-pack { border-radius: 2.8% / 2.1%; }
 .board.is-transparent { background: conic-gradient(#e6e1ee 25%, #fff 0 50%, #e6e1ee 0 75%, #fff 0) 0 0 / 22px 22px; }
@@ -646,26 +647,21 @@ input[type='range']::-moz-range-thumb { width: 22px; height: 22px; border-radius
   font-size: 15px; pointer-events: none;
 }
 .board-empty p { margin: 0; }
+.board-empty-pos { position: absolute; inset: 0; pointer-events: none; }
 .board-empty-big { font-family: var(--bubble); font-size: 24px; color: var(--pink); margin-bottom: 6px !important; }
 
 .sticker { position: absolute; touch-action: none; }
-.peel-stage { position: absolute; inset: 0; transition: transform 0.18s cubic-bezier(0.2, 0.9, 0.3, 1.3); }
+.peel-stage { position: absolute; inset: 0; } /* gerak angkat/jatuh diatur Motion */
 .sticker-front { position: absolute; inset: 0; width: 100%; height: 100%; cursor: grab; -webkit-user-drag: none; filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.22)); }
-.sticker.is-dragging .sticker-front { cursor: grabbing; filter: drop-shadow(0 14px 14px rgba(0, 0, 0, 0.28)); }
-.sticker.is-dragging .peel-stage { transform: scale(1.05) rotate(-1deg); }
+.sticker.is-dragging .sticker-front { cursor: grabbing; }
+.sticker.is-lifted .sticker-front { filter: drop-shadow(0 14px 14px rgba(0, 0, 0, 0.28)); }
 .flap-shadow { position: absolute; inset: 0; pointer-events: none; filter: drop-shadow(-3px -3px 6px rgba(0, 0, 0, 0.28)); }
 .sticker-back { position: absolute; left: 0; top: 0; width: 100%; height: 100%; transform-origin: 0 0; filter: brightness(0) invert(0.97) sepia(0.06); }
-.peel-corner { position: absolute; width: 30px; height: 30px; margin: -22px 0 0 -22px; border: 0; padding: 0; background: transparent; border-radius: 50%; cursor: nw-resize; touch-action: none; }
-.sticker.phase-stick .peel-stage { animation: stick 0.45s cubic-bezier(0.2, 0.9, 0.3, 1.3); }
-@keyframes stick {
-  0% { transform: scale(1.25) rotate(-6deg); opacity: 0; filter: drop-shadow(0 18px 14px rgba(0,0,0,0.3)); }
-  60% { transform: scale(0.97); opacity: 1; }
-  100% { transform: scale(1); }
-}
+.peel-corner { position: absolute; width: var(--pc, 30px); height: var(--pc, 30px); margin: calc(var(--pc, 30px) * -0.73) 0 0 calc(var(--pc, 30px) * -0.73); border: 0; padding: 0; background: transparent; border-radius: 50%; cursor: nw-resize; touch-action: none; }
 .sticker.phase-flying .peel-stage { animation: fly 0.48s cubic-bezier(0.5, 0, 0.8, 0.4) forwards; }
 @keyframes fly { to { transform: translate(-35%, -90%) rotate(-28deg) scale(1.08); opacity: 0; } }
 
-.sel-layer { position: absolute; inset: 0; pointer-events: none; z-index: 10; }
+.sel-layer { position: absolute; inset: 0; pointer-events: none; z-index: 40; } /* di atas jepitan/selotip */
 .sel-frame { position: absolute; border: 2.5px dashed var(--pink); border-radius: 10px; }
 .sel-handle {
   pointer-events: auto; position: absolute; top: -16px; right: -16px;
@@ -696,15 +692,13 @@ input[type='range']::-moz-range-thumb { width: 22px; height: 22px; border-radius
 }
 
 /* ---------- bottom sheet HP ---------- */
-.bsheet-back { position: fixed; inset: 0; z-index: 90; background: rgba(27, 24, 64, 0.4); display: flex; align-items: flex-end; animation: fade 0.2s; }
+.bsheet-back { position: fixed; inset: 0; z-index: 90; background: rgba(27, 24, 64, 0.4); display: flex; align-items: flex-end; }
 .bsheet {
   width: 100%; max-height: 84vh; overflow-y: auto;
   background: linear-gradient(180deg, #fff3fa, #fff8ec);
   border: 3px solid var(--ink); border-bottom: 0; border-radius: 28px 28px 0 0;
   padding-bottom: max(18px, env(safe-area-inset-bottom));
-  animation: up 0.32s cubic-bezier(0.2, 0.9, 0.25, 1);
 }
-@keyframes up { from { transform: translateY(100%); } }
 .bsheet-head { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; justify-content: space-between; padding: 18px 16px 10px; background: #fff3fa; }
 .bsheet-grab { position: absolute; top: 7px; left: 50%; width: 44px; height: 5px; margin-left: -22px; border-radius: 9px; background: rgba(27, 24, 64, 0.25); }
 .bsheet-head h2 { margin: 0; font-family: var(--bubble); font-weight: 400; font-size: 22px; color: var(--pink); }
@@ -1203,18 +1197,19 @@ input[type='range']::-moz-range-thumb { width: 22px; height: 22px; border-radius
 .phone-key.clear { min-height: 34px; font-size: 12.5px; background: rgba(255, 255, 255, 0.82); color: #b0001a; }
 
 /* ---------- menu cepat di atas stiker terpilih ---------- */
+/* posisi diatur wrapper; pop/pegasnya diatur Motion di .sel-menu */
+.sel-menu-pos { position: absolute; z-index: 20; transform: translate(-50%, calc(-100% - 12px)); }
+.sel-menu-pos.below { transform: translate(-50%, 12px); }
 .sel-menu {
-  position: absolute; z-index: 20; display: flex; gap: 2px; padding: 4px; white-space: nowrap; pointer-events: auto;
-  transform: translate(-50%, calc(-100% - 12px));
+  display: flex; gap: 2px; padding: 4px; white-space: nowrap; pointer-events: auto;
   border-radius: 14px; background: #fff; border: 2.5px solid var(--ink); box-shadow: 0 4px 0 var(--ink);
-  animation: sel-pop 0.18s ease-out;
 }
-.sel-menu.below { transform: translate(-50%, 12px); }
-.sel-menu button { height: 32px; padding: 0 10px; border: 0; border-radius: 9px; background: none; color: var(--ink); font-family: var(--ui); font-size: 14px; font-weight: 600; }
+.sel-menu button { display: inline-flex; align-items: center; gap: 5px; height: 34px; padding: 0 9px; border: 0; border-radius: 9px; background: none; color: var(--ink); font-family: var(--ui); font-size: 13.5px; font-weight: 600; cursor: pointer; }
+.sel-menu button svg { flex: none; }
 .sel-menu button:hover { background: var(--pink-soft); }
 .sel-menu button.danger { color: #d0102a; }
-@keyframes sel-pop { from { opacity: 0; scale: 0.9; } }
-.mode-phone .sel-menu button { padding: 0 7px; font-size: 13px; }
+/* kertas sempit: ikon di atas, tulisan kecil di bawah → muat & ga kepotong */
+.sel-menu.is-compact button { flex-direction: column; justify-content: center; gap: 1px; width: 44px; height: 42px; padding: 0; font-size: 9.5px; line-height: 1.1; }
 
 /* ---------- progres AI ---------- */
 .ai-progress { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 14px; background: var(--pink-soft); border: 2px solid var(--ink); }
@@ -1264,11 +1259,22 @@ input[type='range']::-moz-range-thumb { width: 22px; height: 22px; border-radius
 /* menu bawah: bisa diusap ke bawah */
 .bsheet { will-change: transform; }
 .bsheet-head { touch-action: none; cursor: grab; }
-.bsheet.dragging { transition: none; animation: none; }
-.bsheet.settling { transition: transform 0.22s ease-out; }
 
 /* HP: jepitan kayu kecil, cuma nempel dikit di ujung kertas biar ga nutupin header */
 .mode-phone .bt1, .mode-phone .bt2 { width: 20px; height: 46px; top: -38px; }
 .mode-phone .bt1::after, .mode-phone .bt2::after { top: 19px; height: 5px; }
 .mode-phone .bt1 { left: 20%; }
 .mode-phone .bt2 { right: 20%; }
+
+/* ---------- logo: script miring pink ---------- */
+.logo-word, .brand-script {
+  display: inline-block; font-family: var(--script); font-weight: 400; letter-spacing: 0;
+  color: var(--pink); background: none; -webkit-background-clip: border-box; background-clip: border-box;
+  -webkit-text-stroke: 5px #fff; paint-order: stroke fill;
+  filter: drop-shadow(2px 3px 0 rgba(27, 24, 64, 0.35));
+  transform: rotate(-4deg); line-height: 1.35;
+}
+.logo-word { font-size: 30px; padding: 0 4px; }
+.mode-phone .logo-word { font-size: 26px; }
+.brand-script { font-size: 19px; -webkit-text-stroke: 4px #fff; margin-right: 2px; }
+@keyframes up { from { transform: translateY(100%); } } /* dipakai .sheet (share/scan) */

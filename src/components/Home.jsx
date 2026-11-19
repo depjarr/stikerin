@@ -108,7 +108,7 @@ export default function Home({ onStart, onDemo, onContinue, hasWork, count = 0 }
         {/* judul */}
         <header className="hb-head hb-item hb-par" style={{ '--r': '-1.5deg', '--d': '0s', '--z': 8 }}>
           <p className="hb-brand">
-            <span className="hb-logo" aria-hidden="true">✦</span> stikerin <span>· papan stiker buatan sendiri</span>
+            <span className="brand-script">Stikerin</span> <span>· papan stiker buatan sendiri</span>
           </p>
           <StickerTitle lines={['BIKIN STIKER', 'SESUKAMU!']} delay={0.2} />
           <p className="hb-sub">dari foto, tulisan, atau prompt AI</p>

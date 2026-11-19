@@ -1,10 +1,11 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { motion, AnimatePresence, MotionConfig } from 'motion/react';
 import Board from './components/Board.jsx';
 import Home from './components/Home.jsx';
 import CameraScanner from './components/CameraScanner.jsx';
 import ShareSheet from './components/ShareSheet.jsx';
 import { ScanButton, PhotoStrip, RetroPhone, StickyNote, Postcard, BottomSheet } from './components/Panels.jsx';
-import { Star, Tape, DeskDoodles } from './components/Deco.jsx';
+import { Tape, DeskDoodles } from './components/Deco.jsx';
 import Icon from './components/Icons.jsx';
 import { fileToCutout, aiCutout, renderSticker, dataURLToBlob, toWhatsAppSticker, canvasToBlob } from './lib/sticker.js';
 import { saveDoc, loadDoc, blobToCanvas } from './lib/persist.js';
@@ -70,6 +71,17 @@ function arrange(stickers, pack) {
   }
   return stickers.map((s) => (layout.has(s.id) ? { ...s, ...layout.get(s.id) } : s));
 }
+
+// barang-barang di meja muncul berurutan
+const DESK = { hidden: {}, show: { transition: { staggerChildren: 0.09, delayChildren: 0.08 } } };
+const POP = {
+  hidden: { opacity: 0, y: 36, rotate: -2.5, scale: 0.96 },
+  show: { opacity: 1, y: 0, rotate: 0, scale: 1, transition: { type: 'spring', stiffness: 260, damping: 20 } },
+};
+const DROP = {
+  hidden: { opacity: 0, y: -50, rotate: 2 },
+  show: { opacity: 1, y: 0, rotate: 0, transition: { type: 'spring', stiffness: 300, damping: 17 } },
+};
 
 export default function App() {
   const mode = useLayoutMode();
@@ -174,6 +186,7 @@ export default function App() {
   /* ---------- undo / redo ---------- */
   const hist = useRef({ past: [], future: [], last: null, timer: 0, skip: false });
   const [, setHistTick] = useState(0);
+  const [glideKey, setGlideKey] = useState(0); // naik tiap undo/redo → stiker meluncur ke posisi lama
   useEffect(() => {
     const h = hist.current;
     const cur = { stickers, bg, pack };
@@ -213,6 +226,7 @@ export default function App() {
     setStickers(doc.stickers.map((s) => (s.peelNonce ? { ...s, peelNonce: 0 } : s)));
     setBg(doc.bg);
     setPack(doc.pack);
+    setGlideKey((k) => k + 1);
     setHistTick((t) => t + 1);
   };
   const undo = () => {
@@ -569,9 +583,18 @@ export default function App() {
     </>
   );
 
+  // pindah layar: halaman awal memudar dulu, baru meja studio muncul (barang-barangnya nyusul satu-satu)
+  const shell = (child) => (
+    <MotionConfig reducedMotion="user">
+      <AnimatePresence mode="wait" initial={false}>
+        {child}
+      </AnimatePresence>
+    </MotionConfig>
+  );
+
   if (screen === 'home') {
-    return (
-      <>
+    return shell(
+      <motion.div key="home" className="screen-home" exit={{ opacity: 0, transition: { duration: 0.22 } }}>
         <Home
           hasWork={stickers.length > 0}
           count={stickers.length}
@@ -586,12 +609,13 @@ export default function App() {
           onContinue={() => setScreen('studio')}
         />
         {overlays}
-      </>
+      </motion.div>
     );
   }
 
   /* ---------- panel-panel studio (meja loker) ---------- */
   const closeSheetOnPhone = () => mode === 'phone' && setSheet(null);
+  const closeSheet = () => setSheet(null);
   const strip = (
     <PhotoStrip
       horizontal={mode !== 'desk'}
@@ -667,12 +691,23 @@ export default function App() {
     onDelete: remove,
   };
 
-  return (
-    <div className={`studio mode-${mode}`}>
-      <header className="studio-top">
+  return shell(
+    <motion.div
+      key="studio"
+      className={`studio mode-${mode}`}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0, transition: { duration: 0.2 } }}
+      transition={{ duration: 0.25 }}
+    >
+      <motion.header
+        className="studio-top"
+        initial={{ y: -70, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ type: 'spring', stiffness: 300, damping: 26 }}
+      >
         <button type="button" className="logo" onClick={() => setScreen('home')} aria-label="Ke halaman awal">
-          <Star size={30} />
-          <span className="logo-word">stikerin</span>
+          <span className="logo-word">Stikerin</span>
         </button>
         {mode === 'desk' && <span className="top-slogan">foto, tempel, kirim!</span>}
         <div className="top-undo">
@@ -695,18 +730,18 @@ export default function App() {
             <Icon name="download" size={17} strokeWidth={2.2} /> <span>{exporting ? 'Nyiapin…' : 'Simpan'}</span>
           </button>
         </nav>
-      </header>
+      </motion.header>
 
-      <div className="desk">
+      <motion.div className="desk" initial="hidden" animate="show" variants={DESK}>
         <DeskDoodles />
         {mode !== 'phone' && (
-          <div className="area-tools">
+          <motion.div className="area-tools" variants={POP}>
             <ScanButton onScan={() => setScanOpen(true)} jobs={jobs} />
             {postcard}
-          </div>
+          </motion.div>
         )}
-        <div className="area-strip">{strip}</div>
-        <div className="area-board">
+        <motion.div className="area-strip" variants={POP}>{strip}</motion.div>
+        <motion.div className="area-board" variants={DROP}>
           <div className="board-holder">
             <Tape className="bt1" />
             <Tape className="bt2" />
@@ -722,17 +757,18 @@ export default function App() {
               onWear={onWear}
               onUndress={onUndress}
               actions={boardActions}
+              glideKey={glideKey}
             />
           </div>
           <p className="board-hint">ketuk stiker buat menu · tarik pojok yang kelipat buat nyabut · ↻ putar & ubah ukuran</p>
-        </div>
+        </motion.div>
         {mode !== 'phone' && (
-          <div className="area-side">
+          <motion.div className="area-side" variants={POP}>
             {phone}
             {note}
-          </div>
+          </motion.div>
         )}
-      </div>
+      </motion.div>
 
       {mode === 'phone' && (
         <>
@@ -753,12 +789,14 @@ export default function App() {
               <Icon name="download" size={22} /> Simpan
             </button>
           </nav>
-          {sheet === 'gaya' && <BottomSheet title="Gaya kertas" onClose={() => setSheet(null)}>{postcard}</BottomSheet>}
-          {sheet === 'atur' && <BottomSheet title="Atur stiker" onClose={() => setSheet(null)}>{note}</BottomSheet>}
-          {sheet === 'kirim' && <BottomSheet title="Kirim" onClose={() => setSheet(null)}>{phone}</BottomSheet>}
+          <AnimatePresence>
+            {sheet === 'gaya' && <BottomSheet key="gaya" title="Gaya kertas" onClose={closeSheet}>{postcard}</BottomSheet>}
+            {sheet === 'atur' && <BottomSheet key="atur" title="Atur stiker" onClose={closeSheet}>{note}</BottomSheet>}
+            {sheet === 'kirim' && <BottomSheet key="kirim" title="Kirim" onClose={closeSheet}>{phone}</BottomSheet>}
+          </AnimatePresence>
         </>
       )}
       {overlays}
-    </div>
+    </motion.div>
   );
 }

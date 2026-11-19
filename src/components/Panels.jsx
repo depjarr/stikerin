@@ -4,6 +4,7 @@ import { renderCard, CARD_COLORS, CARD_FONTS } from '../lib/card.js';
 import { aiStatus } from '../lib/cloud.js';
 import { TEXT_STYLES } from '../lib/textSticker.js';
 import { KINDS, SLOT_LABEL, SLOT_ORDER } from '../lib/dressup.js';
+import { motion, useDragControls } from 'motion/react';
 import Icon from './Icons.jsx';
 import { Star, Tape } from './Deco.jsx';
 
@@ -933,48 +934,48 @@ export function DressTab({ onUpload, jobs }) {
 /* =================== bottom sheet (HP) =================== */
 
 export function BottomSheet({ title, onClose, children }) {
-  const sheetRef = useRef(null);
+  const drag = useDragControls();
   useEffect(() => {
     const onKey = (e) => e.key === 'Escape' && onClose();
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
-  // usap bagian atas sheet ke bawah buat nutup
-  const onHeadDown = (e) => {
-    if (e.target.closest('button')) return;
-    const el = sheetRef.current;
-    const startY = e.clientY;
-    const t0 = performance.now();
-    let dy = 0;
-    el.classList.add('dragging');
-    const move = (ev) => {
-      dy = Math.max(0, ev.clientY - startY);
-      el.style.transform = `translateY(${dy}px)`;
-    };
-    const up = () => {
-      window.removeEventListener('pointermove', move);
-      window.removeEventListener('pointerup', up);
-      el.classList.remove('dragging');
-      const fast = dy > 40 && dy / (performance.now() - t0) > 0.5;
-      if (dy > el.offsetHeight * 0.3 || fast) {
-        el.classList.add('settling');
-        el.style.transform = 'translateY(100%)';
-        setTimeout(onClose, 200);
-      } else {
-        el.classList.add('settling');
-        el.style.transform = '';
-        setTimeout(() => el.classList.remove('settling'), 230);
-      }
-    };
-    window.addEventListener('pointermove', move);
-    window.addEventListener('pointerup', up);
-  };
-
   return (
-    <div className="bsheet-back" onPointerDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="bsheet" ref={sheetRef} role="dialog" aria-modal="true" aria-label={title}>
-        <header className="bsheet-head" onPointerDown={onHeadDown}>
+    <motion.div
+      className="bsheet-back"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0, transition: { duration: 0.2 } }}
+      onPointerDown={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <motion.div
+        className="bsheet"
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        initial={{ y: '100%' }}
+        animate={{ y: 0 }}
+        exit={{ y: '100%', transition: { type: 'spring', stiffness: 420, damping: 40 } }}
+        transition={{ type: 'spring', stiffness: 380, damping: 32 }}
+        // usap bagian atas ke bawah buat nutup: ngikutin jari, dilepas -> nutup atau mantul balik
+        drag="y"
+        dragListener={false}
+        dragControls={drag}
+        dragConstraints={{ top: 0, bottom: 0 }}
+        dragElastic={{ top: 0.04, bottom: 1 }}
+        dragMomentum={false}
+        onDragEnd={(e, info) => {
+          const h = e.target?.closest?.('.bsheet')?.offsetHeight || 400;
+          if (info.offset.y > h * 0.3 || info.velocity.y > 600) onClose();
+        }}
+      >
+        <header
+          className="bsheet-head"
+          onPointerDown={(e) => {
+            if (!e.target.closest('button')) drag.start(e);
+          }}
+        >
           <span className="bsheet-grab" aria-hidden />
           <h2>{title}</h2>
           <button type="button" className="win-x" onClick={onClose} aria-label="Tutup">
@@ -982,7 +983,7 @@ export function BottomSheet({ title, onClose, children }) {
           </button>
         </header>
         <div className="bsheet-body">{children}</div>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 }

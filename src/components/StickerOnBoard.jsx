@@ -1,5 +1,10 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { motion } from 'motion/react';
 import { BOARD_W, BOARD_H } from '../lib/exporter.js';
+
+// pegas buat stiker meluncur (dilempar / undo-redo)
+export const GLIDE = { type: 'spring', stiffness: 260, damping: 30, mass: 0.9 };
+const INSTANT = { duration: 0 };
 
 /*
   Animasi peel = lipatan datar di sepanjang garis x + y = s (arah diagonal, dari pojok kanan-bawah).
@@ -33,12 +38,14 @@ export function clipHalf(W, H, s, keepBelow) {
 
 export const easeInOut = (t) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
 
-export default function StickerOnBoard({ st, selected, dragging, dropTarget, worn = [], onWornDown, onPointerDown, onPeeled }) {
+export default function StickerOnBoard({ st, selected, dragging, lifted, glide = false, enterDelay = 0, dropTarget, worn = [], onWornDown, onPointerDown, onPeeled }) {
   const stageRef = useRef(null);
   const [size, setSize] = useState({ w: 0, h: 0 });
   const [s, setS] = useState(null); // posisi garis lipat; null = ga lagi dipeel
   const [hover, setHover] = useState(false);
-  const [phase, setPhase] = useState('stick'); // stick -> idle -> peeling -> flying
+  // stiker yang barusan ditempel → jatuh ke kertas pakai pegas; yang lama (dari simpanan/undo) langsung diam
+  const [fresh] = useState(() => Date.now() - (st.placedAt || 0) < 1500);
+  const [phase, setPhase] = useState(fresh ? 'stick' : 'idle'); // stick -> idle -> peeling -> flying
   const raf = useRef(0);
   const sRef = useRef(null);
   const lastNonce = useRef(st.peelNonce);
@@ -51,7 +58,7 @@ export default function StickerOnBoard({ st, selected, dragging, dropTarget, wor
   }, []);
 
   useEffect(() => {
-    const t = setTimeout(() => setPhase((p) => (p === 'stick' ? 'idle' : p)), 450);
+    const t = setTimeout(() => setPhase((p) => (p === 'stick' ? 'idle' : p)), 450 + enterDelay * 1000);
     return () => {
       clearTimeout(t);
       cancelAnimationFrame(raf.current);
@@ -132,23 +139,35 @@ export default function StickerOnBoard({ st, selected, dragging, dropTarget, wor
   const W = size.w, H = size.h;
 
   const h = (st.width * st.imgH) / st.imgW;
-  const style = {
+  const box = {
     left: `${((st.x - st.width / 2) / BOARD_W) * 100}%`,
     top: `${((st.y - h / 2) / BOARD_H) * 100}%`,
     width: `${(st.width / BOARD_W) * 100}%`,
     height: `${(h / BOARD_H) * 100}%`,
-    transform: `rotate(${st.rot}deg)`,
-    zIndex: st.z,
+    rotate: st.rot,
   };
 
   return (
-    <div
-      className={`sticker phase-${phase} ${selected ? 'is-selected' : ''} ${dragging ? 'is-dragging' : ''} ${dropTarget ? 'is-drop' : ''} ${st.kind === 'doll' ? 'is-doll' : ''}`}
-      style={style}
+    <motion.div
+      className={`sticker phase-${phase} ${selected ? 'is-selected' : ''} ${dragging ? 'is-dragging' : ''} ${lifted ? 'is-lifted' : ''} ${dropTarget ? 'is-drop' : ''} ${st.kind === 'doll' ? 'is-doll' : ''}`}
+      style={{ zIndex: st.z }}
+      initial={box}
+      animate={box}
+      transition={glide ? GLIDE : INSTANT}
       onPointerEnter={() => setHover(true)}
       onPointerLeave={() => setHover(false)}
     >
-      <div className="peel-stage" ref={stageRef}>
+      <motion.div
+        className="peel-stage"
+        ref={stageRef}
+        initial={fresh ? { scale: 1.35, rotate: -9, y: -18, opacity: 0 } : false}
+        animate={lifted ? { scale: 1.06, rotate: -1.5, y: -2, opacity: 1 } : { scale: 1, rotate: 0, y: 0, opacity: 1 }}
+        transition={
+          lifted
+            ? { type: 'spring', stiffness: 500, damping: 28 }
+            : { type: 'spring', stiffness: 520, damping: 13, mass: 0.8, delay: phase === 'stick' ? enterDelay : 0, opacity: { duration: 0.12, delay: phase === 'stick' ? enterDelay : 0 } }
+        }
+      >
         <img
           className="sticker-front"
           src={st.url}
@@ -188,17 +207,18 @@ export default function StickerOnBoard({ st, selected, dragging, dropTarget, wor
             />
           </div>
         )}
-        {phase !== 'flying' && size.w > 0 && (
+        {phase !== 'flying' && !dragging && size.w > 0 && (
           <button
             type="button"
             className="peel-corner"
             title="Tarik pojok ini buat nyabut stiker"
             aria-label={`Cabut stiker ${st.name}`}
-            style={{ left: st.peel.cx * size.w, top: st.peel.cy * size.w }}
+            // area tarik ikut ukuran stiker → stiker kecil ga ketutup, tetap bisa digeser
+            style={{ left: st.peel.cx * size.w, top: st.peel.cy * size.w, '--pc': `${Math.round(Math.max(12, Math.min(30, Math.min(size.w, size.h) * 0.24)))}px` }}
             onPointerDown={onCornerDown}
           />
         )}
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 }
