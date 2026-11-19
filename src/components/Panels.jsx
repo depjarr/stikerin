@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { fileToDataURL, fileToCutout, loadImage } from '../lib/sticker.js';
 import { renderCard, CARD_COLORS, CARD_FONTS } from '../lib/card.js';
-import { geminiEnabled } from '../lib/cloud.js';
+import { aiStatus } from '../lib/cloud.js';
 import { TEXT_STYLES } from '../lib/textSticker.js';
 import { KINDS, SLOT_LABEL, SLOT_ORDER } from '../lib/dressup.js';
 import Icon from './Icons.jsx';
@@ -580,7 +580,7 @@ function PromptTab({ onGenerate }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   useEffect(() => {
-    geminiEnabled().then(setEnabled);
+    aiStatus().then((st) => setEnabled(st.image));
   }, []);
 
   const go = async () => {
@@ -601,7 +601,7 @@ function PromptTab({ onGenerate }) {
       <h3 className="pc-title">Stiker dari prompt</h3>
       {enabled === false && (
         <p className="pc-hint warn">
-          Fitur ini butuh Gemini API key di server (<code>GEMINI_API_KEY</code>). Cara isinya ada di README.
+          Fitur ini belum aktif: isi <code>CLOUDFLARE_ACCOUNT_ID</code> dan <code>CLOUDFLARE_API_TOKEN</code> di server dulu (caranya ada di README).
         </p>
       )}
       <label className="field">
@@ -636,7 +636,7 @@ function PromptTab({ onGenerate }) {
         )}
       </button>
       {err && <p className="scan-status err">{err}</p>}
-      <p className="pc-hint">Gambarnya dibikin Gemini, terus otomatis dipotong & dikasih pinggiran putih.</p>
+      <p className="pc-hint">Gambarnya dibikin AI (gratis), terus otomatis dipotong & dikasih pinggiran putih. Bisa makan 10–40 detik.</p>
     </div>
   );
 }
@@ -809,7 +809,7 @@ function Outfit({ doll, stickers, onTakeOff, onRealistic }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   useEffect(() => {
-    geminiEnabled().then(setEnabled);
+    aiStatus().then((st) => setEnabled(st.tryOn));
   }, []);
   const realistic = async () => {
     setBusy(true);

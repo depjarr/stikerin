@@ -43,6 +43,34 @@ GEMINI_TEXT_MODEL=gemini-3.5-flash-lite
 
 Catatan biaya: AI Studio punya kuota gratis, tapi model gambar (prompt & try-on) bisa butuh billing aktif di Google Cloud.
 
+## Stiker dari prompt (gratis)
+
+Fitur **✦ Prompt** pakai **Cloudflare Workers AI** (model FLUX schnell): gratis 10.000 Neurons/hari, ±77 Neurons per gambar 1024×1024, jadi kira-kira **130 gambar/hari**. Reset tiap 00:00 UTC (07:00 WIB).
+
+Penyedia lain bisa dinyalain lewat `IMAGE_PROVIDERS` (lihat di bawah): **Pollinations** (gratis tanpa daftar, 1 gambar/±45 detik, kualitas biasa) dan **Gemini** (model gambarnya ga ada kuota gratis, butuh billing).
+
+Cara bikin token Cloudflare:
+
+1. Daftar/masuk di https://dash.cloudflare.com (gratis).
+2. **Account ID**: buka menu **Workers & Pages** (atau halaman akun), salin **Account ID** di panel kanan.
+3. **API token**: klik ikon profil → **My Profile → API Tokens → Create Token** → pilih template **Workers AI** → **Continue to summary → Create Token** → salin token-nya (cuma muncul sekali).
+4. Tambahkan ke `.env.local` (dan ke Environment Variables di Vercel):
+
+   ```
+   CLOUDFLARE_ACCOUNT_ID=isi_account_id
+   CLOUDFLARE_API_TOKEN=isi_token
+   ```
+
+Opsional:
+
+```
+CLOUDFLARE_IMAGE_MODEL=@cf/black-forest-labs/flux-1-schnell
+IMAGE_PROVIDERS=cloudflare            # contoh: cloudflare,pollinations
+GEMINI_TRYON=1        # nyalain tombol paper doll realistis (butuh billing Gemini)
+```
+
+Kalau `GEMINI_API_KEY` diisi, model teks Gemini (gratis) dipakai buat nerjemahin prompt ke bahasa Inggris biar gambarnya lebih nurut.
+
 ## Online-kan di Vercel
 
 1. Import repo ini di vercel.com (framework: Vite).

@@ -3,15 +3,18 @@
 import { makeCanvas, canvasToBlob, loadImage } from './sticker.js';
 
 let statusP = null;
-export function geminiEnabled() {
+/** Status fitur AI di server: { gemini, image, tryOn }. Semua false kalau server ga ada. */
+export function aiStatus() {
   if (!statusP) {
+    const off = { gemini: false, image: false, tryOn: false };
     statusP = fetch('/api/status')
-      .then((r) => (r.ok ? r.json() : { gemini: false }))
-      .then((d) => !!d.gemini)
-      .catch(() => false);
+      .then((r) => (r.ok ? r.json() : off))
+      .then((d) => ({ ...off, ...d }))
+      .catch(() => off);
   }
   return statusP;
 }
+export const geminiEnabled = () => aiStatus().then((s) => !!s.gemini);
 
 async function post(path, body) {
   const r = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
