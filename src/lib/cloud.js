@@ -33,6 +33,28 @@ function toJpegDataUrl(src, max = 1024, bg = null) {
   return c.toDataURL(bg ? 'image/jpeg' : 'image/png', 0.9);
 }
 
+function overlap(a, b) {
+  // a, b: [x0, y0, x1, y1] → IoU
+  const ix = Math.max(0, Math.min(a[2], b[2]) - Math.max(a[0], b[0]));
+  const iy = Math.max(0, Math.min(a[3], b[3]) - Math.max(a[1], b[1]));
+  const inter = ix * iy;
+  const area = (r) => Math.max(0, r[2] - r[0]) * Math.max(0, r[3] - r[1]);
+  return inter / (area(a) + area(b) - inter || 1);
+}
+
+function shouldSwap(pts, box) {
+  const bboxOf = (list) => {
+    const xs = list.map((p) => p[0]), ys = list.map((p) => p[1]);
+    return [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)];
+  };
+  if (!Array.isArray(box) || box.length !== 4) return true; // konvensi Gemini: [y, x]
+  const [y0, x0, y1, x1] = box;
+  const target = [x0, y0, x1, y1];
+  const asXY = overlap(bboxOf(pts), target);
+  const asYX = overlap(bboxOf(pts.map(([a, b]) => [b, a])), target);
+  return asYX > asXY;
+}
+
 /** Potong latar pakai poligon dari Gemini. Balikin canvas transparan atau null. */
 export async function removeBgCloud(src) {
   const w = src.naturalWidth || src.width, h = src.naturalHeight || src.height;
@@ -45,8 +67,10 @@ export async function removeBgCloud(src) {
   m.filter = `blur(${Math.max(1, Math.round(Math.max(w, h) / 600))}px)`;
   let drawn = 0;
   for (const o of objects) {
-    const pts = (o.polygon || []).filter((p) => Array.isArray(p) && p.length >= 2);
+    let pts = (o.polygon || []).filter((p) => Array.isArray(p) && p.length >= 2);
     if (pts.length < 3) continue;
+    // Gemini kadang ngasih titik sebagai [y, x] (sama kayak box_2d). Pilih urutan yang cocok sama kotaknya.
+    if (shouldSwap(pts, o.box_2d)) pts = pts.map(([a, b]) => [b, a]);
     m.beginPath();
     pts.forEach(([x, y], i) => {
       const px = (x / 1000) * w, py = (y / 1000) * h;

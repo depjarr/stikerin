@@ -337,7 +337,7 @@ button:disabled { cursor: default; }
 .mode-phone .studio-top { height: 56px; padding: 0 14px; }
 .mode-phone .top-nav { display: none; }
 .mode-phone .logo-word { font-size: 26px; }
-.mode-phone .desk { display: flex; flex-direction: column; gap: 14px; margin: 0; padding: 40px 16px 120px 46px; border-radius: 0; border: 0; box-shadow: none; }
+.mode-phone .desk { display: flex; flex-direction: column; gap: 14px; margin: 0; padding: 40px 16px 120px 16px; border-radius: 0; border: 0; box-shadow: none; }
 .mode-phone .desk::before { inset: 14px 8px 100px 14px; }
 .mode-phone .desk::after { top: 4px; width: 120px; margin-left: -60px; height: 34px; }
 .mode-phone .desk::before, .mode-phone .desk::after { display: none; }

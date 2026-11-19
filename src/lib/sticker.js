@@ -120,22 +120,23 @@ export async function fileToCutout(file, { useAI, shape, onProgress }) {
 }
 
 /**
- * Gambar apa aja → cutout. Coba Gemini dulu (kalau API key diisi di server),
- * kalau gagal pakai AI yang jalan di browser.
+ * Gambar apa aja → cutout. Pakai AI browser (motong per piksel, paling rapi).
+ * Kalau AI browser gagal (mis. model ga ke-download), coba Gemini sebagai cadangan.
  */
 export async function aiCutout(img, onProgress) {
-  const cloud = await import('./cloud.js');
-  if (await cloud.geminiEnabled()) {
-    try {
-      onProgress?.('Gemini lagi motong foto…', 0.3);
+  try {
+    return await localCutout(img, onProgress);
+  } catch (localErr) {
+    console.warn('AI browser gagal motong, coba Gemini', localErr);
+    const cloud = await import('./cloud.js');
+    if (await cloud.geminiEnabled()) {
+      onProgress?.('Gemini lagi motong foto…', 0.5);
       const cut = await cloud.removeBgCloud(img);
       const trimmed = cut && trimCanvas(cut);
       if (trimmed) return fitCanvas(trimmed, MAX_SIDE);
-    } catch (e) {
-      console.warn('Gemini gagal motong, pakai AI browser', e);
     }
+    throw localErr;
   }
-  return localCutout(img, onProgress);
 }
 
 async function localCutout(img, onProgress) {
