@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { makeSamples } from '../lib/samples.js';
 import { renderSticker } from '../lib/sticker.js';
-import { Star, Marquee, Lace } from './Deco.jsx';
+import { Star, HudBar, Lace } from './Deco.jsx';
 
 const STEPS = [
   ['1', 'Foto', 'Jepret barang, makanan, temen, atau ambil dari galeri.'],
@@ -9,7 +9,7 @@ const STEPS = [
   ['3', 'Tempel & kirim', 'Susun di kertas stiker, terus kirim ke WA, X, atau simpan.'],
 ];
 
-export default function Home({ onStart, onDemo, onContinue, hasWork }) {
+export default function Home({ onStart, onDemo, onContinue, hasWork, count = 0 }) {
   const [demo, setDemo] = useState([]);
 
   useEffect(() => {
@@ -33,7 +33,7 @@ export default function Home({ onStart, onDemo, onContinue, hasWork }) {
 
   return (
     <div className="home">
-      <Marquee items={['bikin stiker dari fotomu sendiri', 'gratis, langsung jadi', 'cabut, tempel, kirim ke temen', 'tanpa daftar akun']} />
+      <HudBar count={count} />
       <Lace />
 
       <main className="home-stage">

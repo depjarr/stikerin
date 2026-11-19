@@ -406,6 +406,7 @@ export default function App() {
       <>
         <Home
           hasWork={stickers.length > 0}
+          count={stickers.length}
           onStart={() => {
             setScreen('studio');
             setScanOpen(true);

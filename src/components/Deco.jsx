@@ -17,6 +17,38 @@ export function Star({ className = '', size }) {
   );
 }
 
+// Bar atas halaman awal: status ala game retro.
+export function HudBar({ count }) {
+  return (
+    <div className="hud" role="banner">
+      <span className="hud-logo">
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+          <path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z" fill="none" stroke="#ffd60a" strokeWidth="2" strokeLinejoin="round" />
+        </svg>
+        STIKERIN
+      </span>
+      <span className="hud-lv">LV 01</span>
+      <span className="hud-count" aria-label={`Koleksi ${count} stiker`}>
+        KOLEKSI {String(Math.min(999, count)).padStart(3, '0')}
+      </span>
+      <span className="hud-hearts" aria-hidden="true">
+        {[0, 1, 2].map((i) => (
+          <svg key={i} viewBox="0 0 24 24" width="22" height="22">
+            <path d="M12 20s-7-4.4-9-9.2C1.6 7 4.6 4 7.8 4.6c1.8.3 3.2 1.6 4.2 3 1-1.4 2.4-2.7 4.2-3C19.4 4 22.4 7 21 10.8 19 15.6 12 20 12 20z" fill="none" stroke="#fff" strokeWidth="2" strokeLinejoin="round" />
+          </svg>
+        ))}
+      </span>
+      <span className="hud-paused">
+        <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
+          <rect x="6" y="5" width="4" height="14" rx="1" fill="none" stroke="#fff" strokeWidth="2" />
+          <rect x="14" y="5" width="4" height="14" rx="1" fill="none" stroke="#fff" strokeWidth="2" />
+        </svg>
+        PAUSED
+      </span>
+    </div>
+  );
+}
+
 export function Marquee({ items }) {
   const row = [...items, ...items];
   return (
