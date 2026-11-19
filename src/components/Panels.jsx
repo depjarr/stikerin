@@ -188,7 +188,7 @@ export function PhotoStrip({ stickers, jobs, selectedId, onPlace, onSelect, onSh
 
 /* =================== ponsel lipat (kirim) =================== */
 
-export function RetroPhone({ selected, placedCount, onShareSticker, onShareSet, onDownload, exporting }) {
+export function RetroPhone({ selected, placedCount, total = 0, onShareSticker, onShareSet, onDownload, onPrint, onWaPack, onClear, exporting }) {
   return (
     <section className="phone" aria-label="Kirim stiker">
       <div className="phone-top">
@@ -235,11 +235,17 @@ export function RetroPhone({ selected, placedCount, onShareSticker, onShareSet, 
             {exporting ? 'Nyiapin…' : 'Simpan PNG'}
           </button>
         </div>
-        <div className="phone-pad" aria-hidden>
-          {['1', '2', '3', '4', '5', '6', '7', '8', '9', '*', '0', '#'].map((k) => (
-            <span key={k}>{k}</span>
-          ))}
+        <div className="phone-keys2">
+          <button type="button" className="phone-key" onClick={onPrint} disabled={!total || exporting} title="Lembar A4 dengan garis potong">
+            Cetak A4
+          </button>
+          <button type="button" className="phone-key" onClick={onWaPack} disabled={total < 3 || exporting} title={total < 3 ? 'Butuh minimal 3 stiker' : 'Paket stiker WhatsApp (.zip)'}>
+            Paket WA
+          </button>
         </div>
+        <button type="button" className="phone-key clear" onClick={onClear} disabled={!total}>
+          <Icon name="trash" size={15} strokeWidth={2.3} /> Kosongin kertas
+        </button>
       </div>
     </section>
   );

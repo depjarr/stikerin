@@ -3,8 +3,8 @@ import Board from './components/Board.jsx';
 import Home from './components/Home.jsx';
 import CameraScanner from './components/CameraScanner.jsx';
 import ShareSheet from './components/ShareSheet.jsx';
-import { PhotoStrip, StickyNote, BottomSheet } from './components/Panels.jsx';
-import { AddPanel, StylePanel, SharePanel } from './components/IosPanels.jsx';
+import { ScanButton, PhotoStrip, RetroPhone, StickyNote, Postcard, BottomSheet } from './components/Panels.jsx';
+import { Star, Tape, DeskDoodles } from './components/Deco.jsx';
 import Icon from './components/Icons.jsx';
 import { fileToCutout, aiCutout, renderSticker, dataURLToBlob, toWhatsAppSticker, canvasToBlob } from './lib/sticker.js';
 import { saveDoc, loadDoc, blobToCanvas } from './lib/persist.js';
@@ -76,8 +76,7 @@ export default function App() {
   const [screen, setScreen] = useState('home');
   const [scanOpen, setScanOpen] = useState(false);
   const [sheet, setSheet] = useState(null); // HP: 'tambah' | 'gaya' | 'atur' | 'kirim'
-  const [addTab, setAddTab] = useState('foto');
-  const [styleTab, setStyleTab] = useState('bg');
+  const [pcTab, setPcTab] = useState('bg');
   const [stickers, setStickers] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
   const [jobs, setJobs] = useState([]);
@@ -594,11 +593,11 @@ export default function App() {
     );
   }
 
-  /* ---------- panel-panel studio (gaya iOS) ---------- */
+  /* ---------- panel-panel studio (meja loker) ---------- */
   const closeSheetOnPhone = () => mode === 'phone' && setSheet(null);
   const strip = (
     <PhotoStrip
-      horizontal={mode === 'phone'}
+      horizontal={mode !== 'desk'}
       stickers={stickers}
       jobs={jobs}
       selectedId={selectedId}
@@ -609,40 +608,22 @@ export default function App() {
       onArrange={() => setStickers((ss) => arrange(ss, pack))}
     />
   );
-  const addPanel = (
-    <AddPanel
-      tab={addTab}
-      setTab={setAddTab}
-      packOn={pack.enabled}
-      onScan={() => setScanOpen(true)}
-      onFiles={(files) => {
-        onFiles(files);
-        closeSheetOnPhone();
-      }}
-      defaults={defaults}
-      setDefaults={setDefaults}
-      jobs={jobs}
-      onAddText={addText}
-      onAddCard={addCard}
-      onGenerate={generateFromPrompt}
-      onUploadKind={(files, kind) => {
-        onFiles(files, { kind });
-        closeSheetOnPhone();
-      }}
-    />
-  );
-  const stylePanel = (
-    <StylePanel
-      tab={styleTab}
-      setTab={setStyleTab}
+  const postcard = (
+    <Postcard
+      tab={pcTab}
+      setTab={setPcTab}
       bg={bg}
       setBg={setBg}
       pack={pack}
       setPack={setPack}
-      goText={() => {
-        setAddTab('teks');
-        if (mode === 'phone') setSheet('tambah');
+      onAddText={addText}
+      onUploadKind={(files, kind) => {
+        onFiles(files, { kind });
+        closeSheetOnPhone();
       }}
+      onAddCard={addCard}
+      onGenerate={generateFromPrompt}
+      jobs={jobs}
     />
   );
   const note = (
@@ -664,12 +645,12 @@ export default function App() {
       stickers={stickers}
     />
   );
-  const sharePanel = (
-    <SharePanel
+  const phone = (
+    <RetroPhone
       selected={selected}
       placedCount={placedCount}
       total={stickers.length}
-      busy={exporting}
+      exporting={exporting}
       onShareSticker={shareSticker}
       onShareSet={shareSet}
       onDownload={download}
@@ -690,40 +671,48 @@ export default function App() {
   };
 
   return (
-    <div className={`studio ios mode-${mode}`}>
-      <div className="ios-bg" aria-hidden="true" />
-      <header className="ios-nav glass">
-        <button type="button" className="ios-nav-btn" onClick={() => setScreen('home')}>
-          <Icon name="back" size={20} strokeWidth={2.4} /> <span>Beranda</span>
+    <div className={`studio mode-${mode}`}>
+      <header className="studio-top">
+        <button type="button" className="logo" onClick={() => setScreen('home')} aria-label="Ke halaman awal">
+          <Star size={30} />
+          <span className="logo-word">stikerin</span>
         </button>
-        <div className="ios-nav-title">
-          <b>Stikerin</b>
-          <small>{savedAt ? 'Tersimpan otomatis' : 'Belum ada perubahan'}</small>
-        </div>
-        <div className="ios-nav-actions">
-          <button type="button" className="ios-icon-btn" onClick={undo} disabled={!canUndo} aria-label="Batalkan (Ctrl+Z)" title="Batalkan (Ctrl+Z)">
-            <Icon name="undo" size={20} strokeWidth={2.2} />
+        {mode === 'desk' && <span className="top-slogan">foto, tempel, kirim!</span>}
+        <div className="top-undo">
+          <button type="button" onClick={undo} disabled={!canUndo} aria-label="Batalkan (Ctrl+Z)" title="Batalkan (Ctrl+Z)">
+            <Icon name="undo" size={19} strokeWidth={2.4} />
           </button>
-          <button type="button" className="ios-icon-btn" onClick={redo} disabled={!canRedo} aria-label="Ulangi (Ctrl+Shift+Z)" title="Ulangi (Ctrl+Shift+Z)">
-            <Icon name="redo" size={20} strokeWidth={2.2} />
+          <button type="button" onClick={redo} disabled={!canRedo} aria-label="Ulangi (Ctrl+Shift+Z)" title="Ulangi (Ctrl+Shift+Z)">
+            <Icon name="redo" size={19} strokeWidth={2.4} />
           </button>
-          {mode !== 'phone' && (
-            <button type="button" className="ios-btn filled small" onClick={download} disabled={exporting}>
-              <Icon name="download" size={16} strokeWidth={2.4} /> {exporting ? 'Nyiapin…' : 'Simpan'}
-            </button>
-          )}
+          <small className="top-saved">{savedAt ? 'tersimpan ✓' : ''}</small>
         </div>
+        <nav className="top-nav">
+          <button type="button" className="nav-pill blue" onClick={() => setScanOpen(true)}>
+            <Icon name="camera" size={17} strokeWidth={2.2} /> <span>Scan</span>
+          </button>
+          <button type="button" className="nav-pill orange" onClick={shareSet} disabled={!placedCount || exporting}>
+            <Icon name="share" size={17} strokeWidth={2.2} /> <span>Kirim set</span>
+          </button>
+          <button type="button" className="nav-pill pink" onClick={download} disabled={exporting}>
+            <Icon name="download" size={17} strokeWidth={2.2} /> <span>{exporting ? 'Nyiapin…' : 'Simpan'}</span>
+          </button>
+        </nav>
       </header>
 
-      <main className="ios-main">
+      <div className="desk">
+        <DeskDoodles />
         {mode !== 'phone' && (
-          <aside className="ios-col ios-left">
-            {addPanel}
-            {stylePanel}
-          </aside>
+          <div className="area-tools">
+            <ScanButton onScan={() => setScanOpen(true)} jobs={jobs} />
+            {postcard}
+          </div>
         )}
-        <section className="ios-canvas" aria-label="Kertas stiker">
+        <div className="area-strip">{strip}</div>
+        <div className="area-board">
           <div className="board-holder">
+            <Tape className="bt1" />
+            <Tape className="bt2" />
             <Board
               stickers={stickers}
               bg={bg}
@@ -738,41 +727,38 @@ export default function App() {
               actions={boardActions}
             />
           </div>
-          <p className="board-hint">Ketuk stiker buat menu · tarik pojok yang kelipat buat nyabut · ↻ putar & ubah ukuran</p>
-          {mode === 'phone' && strip}
-        </section>
+          <p className="board-hint">ketuk stiker buat menu · tarik pojok yang kelipat buat nyabut · ↻ putar & ubah ukuran</p>
+        </div>
         {mode !== 'phone' && (
-          <aside className="ios-col ios-right">
+          <div className="area-side">
+            {phone}
             {note}
-            {strip}
-            {sharePanel}
-          </aside>
+          </div>
         )}
-      </main>
+      </div>
 
       {mode === 'phone' && (
         <>
-          <nav className="ios-tabbar glass" aria-label="Menu">
-            <button type="button" onClick={() => setSheet('tambah')}>
-              <Icon name="plus" size={24} strokeWidth={2.2} /> Tambah
-            </button>
+          <nav className="dock" aria-label="Alat">
             <button type="button" onClick={() => setSheet('gaya')}>
               <Icon name="sliders" size={22} /> Gaya
-            </button>
-            <button type="button" className="ios-tab-cam" onClick={() => setScanOpen(true)} aria-label="Kamera">
-              <Icon name="camera" size={26} strokeWidth={2.2} />
             </button>
             <button type="button" onClick={() => setSheet('atur')} className={selected ? 'has' : ''}>
               <Icon name="peel" size={22} /> Atur
             </button>
+            <button type="button" className="dock-scan" onClick={() => setScanOpen(true)} aria-label="Scan foto">
+              <Icon name="camera" size={30} strokeWidth={2.2} />
+            </button>
             <button type="button" onClick={() => setSheet('kirim')}>
               <Icon name="share" size={22} /> Kirim
             </button>
+            <button type="button" onClick={download} disabled={exporting}>
+              <Icon name="download" size={22} /> Simpan
+            </button>
           </nav>
-          {sheet === 'tambah' && <BottomSheet title="Tambah stiker" onClose={() => setSheet(null)}>{addPanel}</BottomSheet>}
-          {sheet === 'gaya' && <BottomSheet title="Gaya kertas" onClose={() => setSheet(null)}>{stylePanel}</BottomSheet>}
+          {sheet === 'gaya' && <BottomSheet title="Gaya kertas" onClose={() => setSheet(null)}>{postcard}</BottomSheet>}
           {sheet === 'atur' && <BottomSheet title="Atur stiker" onClose={() => setSheet(null)}>{note}</BottomSheet>}
-          {sheet === 'kirim' && <BottomSheet title="Kirim & simpan" onClose={() => setSheet(null)}>{sharePanel}</BottomSheet>}
+          {sheet === 'kirim' && <BottomSheet title="Kirim" onClose={() => setSheet(null)}>{phone}</BottomSheet>}
         </>
       )}
       {overlays}
