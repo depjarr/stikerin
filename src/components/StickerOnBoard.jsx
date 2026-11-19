@@ -9,7 +9,7 @@ import { BOARD_W, BOARD_H } from '../lib/exporter.js';
   Pencerminan terhadap x + y = s:  (x, y) -> (s - y, s - x)  =>  matrix(0, -1, -1, 0, s, s)
 */
 
-function clipHalf(W, H, s, keepBelow) {
+export function clipHalf(W, H, s, keepBelow) {
   const pts = [[0, 0], [W, 0], [W, H], [0, H]];
   const inside = (p) => (keepBelow ? p[0] + p[1] <= s : p[0] + p[1] >= s);
   const cross = (a, b) => {
@@ -31,7 +31,7 @@ function clipHalf(W, H, s, keepBelow) {
   return `polygon(${out.map((p) => `${p[0].toFixed(1)}px ${p[1].toFixed(1)}px`).join(', ')})`;
 }
 
-const easeInOut = (t) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
+export const easeInOut = (t) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
 
 export default function StickerOnBoard({ st, selected, dragging, dropTarget, worn = [], onWornDown, onPointerDown, onPeeled }) {
   const stageRef = useRef(null);
