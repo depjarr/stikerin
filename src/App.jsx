@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence, MotionConfig } from 'motion/react';
 import Board from './components/Board.jsx';
+import BlindBag from './components/BlindBag.jsx';
 import Home from './components/Home.jsx';
 import CameraScanner from './components/CameraScanner.jsx';
 import ShareSheet from './components/ShareSheet.jsx';
@@ -86,6 +87,8 @@ const DROP = {
 export default function App() {
   const mode = useLayoutMode();
   const [screen, setScreen] = useState('home');
+  const [bagOpen, setBagOpen] = useState(false);
+  const [bagLogo, setBagLogo] = useState(null);
   const [scanOpen, setScanOpen] = useState(false);
   const [sheet, setSheet] = useState(null); // HP: 'tambah' | 'gaya' | 'atur' | 'kirim'
   const [pcTab, setPcTab] = useState('bg');
@@ -572,10 +575,14 @@ export default function App() {
   const selected = stickers.find((s) => s.id === selectedId && s.placed);
   const placedCount = stickers.filter((s) => s.placed).length;
 
+  const closeBag = useCallback(() => setBagOpen(false), []);
   const scanner = scanOpen && <CameraScanner onClose={closeScan} onFiles={onFiles} jobs={jobs} defaults={defaults} setDefaults={setDefaults} />;
   const overlays = (
     <>
       {scanner}
+      {bagOpen && (
+        <BlindBag stickers={stickers} logo={bagLogo} setLogo={setBagLogo} defaults={defaults} toast={toast} onClose={closeBag} />
+      )}
       {share && <ShareSheet item={share} onClose={() => setShare(null)} toast={toast} />}
       <div className={`toast ${toastMsg ? 'show' : ''}`} role="status" aria-live="polite">
         {toastMsg}
@@ -677,6 +684,10 @@ export default function App() {
       onDownload={download}
       onPrint={printA4}
       onWaPack={waPack}
+      onBag={() => {
+        setBagOpen(true);
+        closeSheetOnPhone();
+      }}
       onClear={() => {
         clearBoard();
         closeSheetOnPhone();

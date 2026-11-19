@@ -189,7 +189,7 @@ export function PhotoStrip({ stickers, jobs, selectedId, onPlace, onSelect, onSh
 
 /* =================== ponsel lipat (kirim) =================== */
 
-export function RetroPhone({ selected, placedCount, total = 0, onShareSticker, onShareSet, onDownload, onPrint, onWaPack, onClear, exporting }) {
+export function RetroPhone({ selected, placedCount, total = 0, onShareSticker, onShareSet, onDownload, onPrint, onWaPack, onBag, onClear, exporting }) {
   return (
     <section className="phone" aria-label="Kirim stiker">
       <div className="phone-top">
@@ -244,6 +244,11 @@ export function RetroPhone({ selected, placedCount, total = 0, onShareSticker, o
             Paket WA
           </button>
         </div>
+        {onBag && (
+          <button type="button" className="phone-key bag" onClick={onBag} disabled={!total} title="Masukin stiker ke bungkus blind bag, terus sobek buat buka">
+            🎁 Blind bag
+          </button>
+        )}
         <button type="button" className="phone-key clear" onClick={onClear} disabled={!total}>
           <Icon name="trash" size={15} strokeWidth={2.3} /> Kosongin kertas
         </button>
