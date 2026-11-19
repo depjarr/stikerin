@@ -933,15 +933,48 @@ export function DressTab({ onUpload, jobs }) {
 /* =================== bottom sheet (HP) =================== */
 
 export function BottomSheet({ title, onClose, children }) {
+  const sheetRef = useRef(null);
   useEffect(() => {
     const onKey = (e) => e.key === 'Escape' && onClose();
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
+
+  // usap bagian atas sheet ke bawah buat nutup
+  const onHeadDown = (e) => {
+    if (e.target.closest('button')) return;
+    const el = sheetRef.current;
+    const startY = e.clientY;
+    const t0 = performance.now();
+    let dy = 0;
+    el.classList.add('dragging');
+    const move = (ev) => {
+      dy = Math.max(0, ev.clientY - startY);
+      el.style.transform = `translateY(${dy}px)`;
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      el.classList.remove('dragging');
+      const fast = dy > 40 && dy / (performance.now() - t0) > 0.5;
+      if (dy > el.offsetHeight * 0.3 || fast) {
+        el.classList.add('settling');
+        el.style.transform = 'translateY(100%)';
+        setTimeout(onClose, 200);
+      } else {
+        el.classList.add('settling');
+        el.style.transform = '';
+        setTimeout(() => el.classList.remove('settling'), 230);
+      }
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  };
+
   return (
     <div className="bsheet-back" onPointerDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="bsheet" role="dialog" aria-modal="true" aria-label={title}>
-        <header className="bsheet-head">
+      <div className="bsheet" ref={sheetRef} role="dialog" aria-modal="true" aria-label={title}>
+        <header className="bsheet-head" onPointerDown={onHeadDown}>
           <span className="bsheet-grab" aria-hidden />
           <h2>{title}</h2>
           <button type="button" className="win-x" onClick={onClose} aria-label="Tutup">
