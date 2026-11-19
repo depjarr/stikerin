@@ -8,7 +8,7 @@ import { Star, Tape, DeskDoodles } from './components/Deco.jsx';
 import Icon from './components/Icons.jsx';
 import { fileToCutout, aiCutout, renderSticker, dataURLToBlob, toWhatsAppSticker, canvasToBlob } from './lib/sticker.js';
 import { saveDoc, loadDoc, blobToCanvas } from './lib/persist.js';
-import { renderPrintPages, printPages } from './lib/printSheet.js';
+import { renderPrintPage, printPages } from './lib/printSheet.js';
 import { buildWaPack } from './lib/waPack.js';
 import { generateCloud, tryOnCloud } from './lib/cloud.js';
 import { textToCutout } from './lib/textSticker.js';
@@ -494,14 +494,11 @@ export default function App() {
     const win = window.open('', '_blank'); // dibuka pas klik biar ga diblok
     setExporting(true);
     try {
-      const pages = await renderPrintPages(stickers);
-      if (!pages.length) {
-        win?.close();
-        return;
-      }
-      if (win) printPages(win, pages);
+      // satu lembar penuh: header + latar + semua stiker di kertas + garis potong
+      const page = await renderPrintPage({ stickers, bg, pack });
+      if (win) printPages(win, [page]);
       else {
-        downloadBlob(await canvasToBlob(pages[0]), 'stiker-a4.png');
+        downloadBlob(await canvasToBlob(page), 'stiker-a4.png');
         toast('Popup diblok browser, jadi lembar A4-nya didownload');
       }
     } finally {

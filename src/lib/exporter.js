@@ -233,8 +233,32 @@ export function drawStickerOn(ctx, img, st, shadowScale, extras = []) {
   ctx.restore();
 }
 
-/** Render satu set penuh jadi PNG (2000 x 2666 px). */
-export async function exportSet({ stickers, bg, pack, scale = 2 }) {
+// Garis potong: cincin abu-abu tipis di luar pinggiran stiker (ukuran piksel asli).
+function cutRingCanvas(img, pw, ph, outer, inner) {
+  const pad = Math.ceil(outer) + 2;
+  const sil = makeCanvas(pw, ph);
+  const s = sil.getContext('2d');
+  s.drawImage(img, 0, 0, pw, ph);
+  s.globalCompositeOperation = 'source-in';
+  s.fillStyle = '#8f8f8f';
+  s.fillRect(0, 0, pw, ph);
+  const ring = makeCanvas(pw + pad * 2, ph + pad * 2);
+  const r = ring.getContext('2d');
+  for (let i = 0; i < 20; i++) {
+    const a = (Math.PI * 2 * i) / 20;
+    r.drawImage(sil, pad + Math.cos(a) * outer, pad + Math.sin(a) * outer);
+  }
+  r.globalCompositeOperation = 'destination-out';
+  for (let i = 0; i < 20; i++) {
+    const a = (Math.PI * 2 * i) / 20;
+    r.drawImage(sil, pad + Math.cos(a) * inner, pad + Math.sin(a) * inner);
+  }
+  r.drawImage(sil, pad, pad);
+  return { ring, pad };
+}
+
+/** Render satu set penuh ke canvas. cutLines = tambah garis potong (buat dicetak). */
+export async function renderSetCanvas({ stickers, bg, pack, scale = 2, cutLines = false }) {
   await ensureFonts();
   const images = await loadBaseImages(bg, pack);
   const c = makeCanvas(BOARD_W * scale, BOARD_H * scale);
@@ -259,10 +283,26 @@ export async function exportSet({ stickers, bg, pack, scale = 2 }) {
     const worn = wornList(placed[i], byId);
     const extras = await Promise.all(worn.map(async (w) => ({ rect: w.rect, img: await loadImage(w.item.url) })));
     drawStickerOn(ctx, imgs[i], placed[i], scale, extras);
+    if (cutLines) {
+      // digambar langsung sesudah stikernya, jadi stiker di atasnya nutupin garis ini
+      const st = placed[i];
+      const w = st.width, h = (st.width * st.imgH) / st.imgW;
+      const { ring, pad } = cutRingCanvas(imgs[i], Math.round(w * scale), Math.round(h * scale), 2.2 * scale, 1 * scale);
+      ctx.save();
+      ctx.translate(st.x, st.y);
+      ctx.rotate((st.rot * Math.PI) / 180);
+      ctx.drawImage(ring, -w / 2 - pad / scale, -h / 2 - pad / scale, ring.width / scale, ring.height / scale);
+      ctx.restore();
+    }
   }
   ctx.restore();
 
   drawSheen(ctx, pack);
   cutHole(ctx, pack);
-  return canvasToBlob(c);
+  return c;
+}
+
+/** Render satu set penuh jadi PNG (2000 x 2666 px). */
+export async function exportSet(opts) {
+  return canvasToBlob(await renderSetCanvas({ scale: 2, ...opts }));
 }

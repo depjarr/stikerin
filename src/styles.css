@@ -1266,3 +1266,9 @@ input[type='range']::-moz-range-thumb { width: 22px; height: 22px; border-radius
 .bsheet-head { touch-action: none; cursor: grab; }
 .bsheet.dragging { transition: none; animation: none; }
 .bsheet.settling { transition: transform 0.22s ease-out; }
+
+/* HP: jepitan kayu kecil, cuma nempel dikit di ujung kertas biar ga nutupin header */
+.mode-phone .bt1, .mode-phone .bt2 { width: 20px; height: 46px; top: -38px; }
+.mode-phone .bt1::after, .mode-phone .bt2::after { top: 19px; height: 5px; }
+.mode-phone .bt1 { left: 20%; }
+.mode-phone .bt2 { right: 20%; }

@@ -236,7 +236,7 @@ export function RetroPhone({ selected, placedCount, total = 0, onShareSticker, o
           </button>
         </div>
         <div className="phone-keys2">
-          <button type="button" className="phone-key" onClick={onPrint} disabled={!total || exporting} title="Lembar A4 dengan garis potong">
+          <button type="button" className="phone-key" onClick={onPrint} disabled={exporting} title="Lembar A4 penuh dengan garis potong">
             Cetak A4
           </button>
           <button type="button" className="phone-key" onClick={onWaPack} disabled={total < 3 || exporting} title={total < 3 ? 'Butuh minimal 3 stiker' : 'Paket stiker WhatsApp (.zip)'}>
